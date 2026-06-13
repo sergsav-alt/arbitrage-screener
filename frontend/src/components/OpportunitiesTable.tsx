@@ -64,7 +64,22 @@ const columns: ColumnsType<ArbitrageOpportunity> = [
     dataIndex: 'netProfit',
     key: 'netProfit',
     width: 110,
-    render: (value: number) => formatPrice(value),
+    render: (value: number) => (
+      <span style={{ color: value >= 0 ? '#52c41a' : '#ff4d4f' }}>
+        {formatPrice(value)}
+      </span>
+    ),
+  },
+  {
+    title: 'Slippage',
+    dataIndex: 'slippage',
+    key: 'slippage',
+    width: 110,
+    render: (value: number) => (
+      <span style={{ color: value > 0 ? '#faad14' : '#999' }}>
+        {formatPrice(value)}
+      </span>
+    ),
   },
   {
     title: 'Max Volume',

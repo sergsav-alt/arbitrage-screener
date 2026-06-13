@@ -1,5 +1,6 @@
 package com.arbitrage.screener.core;
 
+import com.arbitrage.screener.entity.OrderBook;
 import com.arbitrage.screener.entity.Ticker;
 import com.arbitrage.screener.entity.TickerCache;
 import com.arbitrage.screener.exchange.ExchangeAdapter;
@@ -14,7 +15,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * Менеджер жизненного цикла подключений к биржам.
- * Управляет стартом/стопом адаптеров, подписками и маршрутизацией тикеров в кэш.
+ * Управляет стартом/стопом адаптеров, подписками и маршрутизацией
+ * тикеров в TickerCache и стаканов в OrderBookCache.
  */
 @Slf4j
 @Service
@@ -22,13 +24,17 @@ public class ExchangeManager {
 
     private final ExchangeAdapterFactory adapterFactory;
     private final TickerCache tickerCache;
+    private final OrderBookCache orderBookCache;
     private final List<ExchangeAdapter> activeAdapters;
     private final List<Runnable> onUpdateListeners;
     private volatile boolean running;
 
-    public ExchangeManager(ExchangeAdapterFactory adapterFactory, TickerCache tickerCache) {
+    public ExchangeManager(ExchangeAdapterFactory adapterFactory,
+                           TickerCache tickerCache,
+                           OrderBookCache orderBookCache) {
         this.adapterFactory = adapterFactory;
         this.tickerCache = tickerCache;
+        this.orderBookCache = orderBookCache;
         this.activeAdapters = new CopyOnWriteArrayList<>();
         this.onUpdateListeners = new CopyOnWriteArrayList<>();
     }
@@ -47,6 +53,7 @@ public class ExchangeManager {
         for (var exchange : exchanges) {
             var adapter = adapterFactory.getAdapter(exchange);
             adapter.onTicker(this::onTickerReceived);
+            adapter.onOrderBook(this::onOrderBookReceived);
             adapter.subscribe(symbols.toArray(new String[0]));
             adapter.connect();
             activeAdapters.add(adapter);
@@ -88,9 +95,6 @@ public class ExchangeManager {
         return status;
     }
 
-    /**
-     * Возвращает количество активных адаптеров.
-     */
     public int getActiveCount() {
         return activeAdapters.size();
     }
@@ -102,5 +106,9 @@ public class ExchangeManager {
     private void onTickerReceived(Ticker ticker) {
         tickerCache.put(ticker);
         onUpdateListeners.forEach(Runnable::run);
+    }
+
+    private void onOrderBookReceived(OrderBook orderBook) {
+        orderBookCache.put(orderBook);
     }
 }

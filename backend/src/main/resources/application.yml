@@ -19,6 +19,19 @@ arbitrage:
   min-spread-percent: 0.1
   ttl-seconds: 30
   scan-interval-ms: 1000
+  default-trade-volume-usdt: 100
+  min-trade-volume-usdt: 10
+
+fees:
+  taker-percent:
+    bingx: 0.1
+    mexc: 0.1
+  withdrawal:
+    per-symbol:
+      USDT:
+        bingx: 1.0
+        mexc: 2.0
+    default-usdt: 2.0
 
 reconnect:
   initial-delay-seconds: 1

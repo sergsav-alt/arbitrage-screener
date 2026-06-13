@@ -1,14 +1,14 @@
 # Чекпоинт: Арбитражный скринер криптовалютных бирж
 
-**Дата:** 2026-06-13  
-**Статус:** Спринты 1–4 завершены. Готовность к Спринту 5 (учёт комиссий и ликвидности).
+**Дата:** 2026-06-13
+**Статус:** Спринты 1–5 завершены. Готовность к Спринту 6 (исторические данные, статистика и графики).
 
 ---
 
 ## 1. Что это за проект
 
-Инструмент для обнаружения кроссбиржевых арбитражных возможностей в реальном времени.  
-Бэкенд на Spring Boot подключается к биржам через WebSocket, получает котировки, считает спреды.  
+Инструмент для обнаружения кроссбиржевых арбитражных возможностей в реальном времени.
+Бэкенд на Spring Boot подключается к биржам через WebSocket, получает котировки, считает спреды с учётом комиссий и ликвидности.
 Фронтенд на React + Ant Design отображает найденные возможности в реальном времени через SSE.
 
 ### Стек
@@ -35,12 +35,14 @@
 
 ```
 com.arbitrage.screener
-├── BackendApplication.java              # @SpringBootApplication
+├── BackendApplication.java              # @SpringBootApplication, @EnableScheduling
 ├── config/
-│   └── CoreConfig.java                  # Все бины (Spring-конфигурация)
+│   ├── CoreConfig.java                  # Все бины ядра (Spring-конфигурация)
+│   ├── FeeConfig.java                   # @ConfigurationProperties("fees"): taker-percent, withdrawal
+│   └── CorsConfig.java                  # CORS для localhost:3000
 ├── entity/
 │   ├── Ticker.java                      # record: exchange, symbol, bidPrice/askPrice, bidQty/askQty, timestamp
-│   ├── TickerCache.java                 # Потокобезопасный кэш (ConcurrentHashMap), TTL=30s, evictExpired()
+│   ├── TickerCache.java                 # Потокобезопасный кэш (ConcurrentHashMap), TTL=30s
 │   ├── OrderBook.java                   # record: exchange, symbol, bids, asks, timestamp
 │   ├── OrderBookLevel.java              # record: price, quantity
 │   ├── ArbitrageOpportunity.java        # record: id, symbol, buyExchange, sellExchange, buyPrice, sellPrice,
@@ -50,78 +52,93 @@ com.arbitrage.screener
 │   ├── ExchangeAdapter.java             # Интерфейс: connect(), disconnect(), subscribe(), onTicker(), onOrderBook()
 │   ├── ExchangeAdapterFactory.java      # Фабрика + кэш адаптеров по ExchangeEnum
 │   ├── ExchangeEnum.java                # BINGX, MEXC (с WS URL)
-│   ├── PriceNormalizer.java             # Группировка тикеров по нормализованному символу (BTCUSDT)
+│   ├── PriceNormalizer.java             # Группировка тикеров по нормализованному символу
 │   ├── bingx/
-│   │   └── BingXAdapter.java            # WS: JSON-подписки ("dataType":"BTC-USDT@bookTicker")
+│   │   └── BingXAdapter.java            # WS: JSON-подписки, bookTicker + depth, reconnect
 │   └── mexc/
-│       └── MexcAdapter.java             # WS: JSON-подписки (method:SUBSCRIPTION, bookTicker)
+│       └── MexcAdapter.java             # WS: JSON-подписки, bookTicker + depth, reconnect
 ├── core/
 │   ├── SpreadCalculator.java            # Расчёт спреда: % и абсолютный, макс. объём, проверка прибыльности
-│   ├── ArbitrageDetector.java           # Сравнение всех пар бирж, обнаружение кроссбиржевых возможностей
-│   ├── OpportunityRepository.java       # Хранение возможностей (ConcurrentHashMap), уникальность по symbol:buy:sell
-│   ├── ArbitrageService.java            # Оркестратор: scan() = evictExpired → groupBySymbol → detect → save
-│   └── ExchangeManager.java             # Управление адаптерами: start/stop/status
+│   ├── FeeCalculator.java               # Расчёт taker-комиссии (volume * rate% / 100)
+│   ├── WithdrawalFeeCalculator.java     # Расчёт комиссии на вывод (по символу и бирже)
+│   ├── OrderBookCache.java              # Потокобезопасный кэш стаканов (TTL=30s)
+│   ├── LiquidityChecker.java            # Проверка достаточности объёма в стакане
+│   ├── SlippageCalculator.java          # Оценка проскальзывания (средневзвешенная цена)
+│   ├── VolumeLimiter.java               # Фильтрация по minVolume из конфига
+│   ├── ArbitrageDetector.java           # Сравнение пар бирж, расчёт netProfit с учётом всех издержек
+│   ├── OpportunityRepository.java       # Хранение возможностей (ConcurrentHashMap)
+│   ├── ArbitrageService.java            # Оркестратор: scan() → detect → save
+│   ├── ArbitrageScheduler.java          # @Scheduled запуск scan(), @PostConstruct/@PreDestroy
+│   └── ExchangeManager.java             # Управление адаптерами, маршрутизация тикеров и стаканов в кэши
 └── controller/
-  
+    ├── ArbitrageController.java         # REST: /api/opportunities, /api/exchanges, /api/symbols
+    ├── StreamController.java            # SSE: /api/stream/opportunities
+    └── GlobalExceptionHandler.java      # @RestControllerAdvice
 ```
 
 ### Ключевые архитектурные решения
 
-1. **Adapter Pattern** — каждый адаптер биржи изолирован за интерфейсом `ExchangeAdapter` (OCP из SOLID).
-2. **Observer через Consumer** — адаптеры уведомляют подписчиков через `Consumer<Ticker>` (не Spring Events).
-3. **Records (Java 17)** — все DTO иммутабельны: `Ticker`, `OrderBook`, `ArbitrageOpportunity`.
+1. **Adapter Pattern** — каждый адаптер биржи изолирован за `ExchangeAdapter` (OCP из SOLID).
+2. **Observer через Consumer** — уведомления через `Consumer<Ticker>` / `Consumer<OrderBook>`.
+3. **Records (Java 17)** — все DTO иммутабельны.
 4. **BigDecimal для денег** — никаких `double`/`float`.
-5. **SSE для real-time** — `SseEmitter` для стриминга на фронтенд (в WebSocketTestController).
-6. **Автопереподключение** — экспоненциальный backoff (1→2→4→...→60 сек) во всех адаптерах.
-7. **Ping/Pong** — WebSocket-уровень (BingX) или application-уровень (MEXC: `{"method":"PING"}`).
+5. **SSE для real-time** — `SseEmitter` для стриминга на фронтенд.
+6. **Автопереподключение** — экспоненциальный backoff (1→2→4→...→60 сек).
+7. **Расчёт чистой прибыли** — с учётом taker-комиссий обеих бирж, комиссии на вывод и проскальзывания.
 
-### Форматы подписок на биржах
-
-```
-BingX:    JSON-сообщение  → {"id":"uuid","dataType":"BTC-USDT@bookTicker"}
-MEXC:     JSON-сообщение  → {"method":"SUBSCRIPTION","params":["spot@public.aggre.bookTicker.v3.api.pb@100ms@BTCUSDT",...]}
-```
-
-### Пайплайн арбитража (реализован в ArbitrageService.scan())
+### Пайплайн арбитража (ArbitrageService.scan())
 
 ```
-Ticker (от адаптера)
-  → TickerCache.put(ticker)
-  → TickerCache.evictExpired()         // удаление тикеров старше TTL=30s
-  → PriceNormalizer.groupBySymbol()    // группировка: BTCUSDT → {BINGX: ticker}
-  → ArbitrageDetector.detect()         // все пары бирж × оба направления
-  → OpportunityRepository.save()       // ключ = symbol:buy:sell (обновление при повторе)
+Ticker/OrderBook (от адаптера)
+  → TickerCache.put(ticker) + OrderBookCache.put(orderBook)
+  → tickerCache.evictExpired() + orderBookCache.evictExpired()
+  → PriceNormalizer.groupBySymbol()
+  → ArbitrageDetector.detect()
+      ├── SpreadCalculator: gross spread
+      ├── FeeCalculator: taker fee × 2 биржи
+      ├── WithdrawalFeeCalculator: фиксированная комиссия вывода
+      ├── LiquidityChecker: достаточно ли объёма в стакане
+      ├── SlippageCalculator: средневзвешенная цена по уровням
+      ├── VolumeLimiter: фильтр по minTradeVolume
+      └── netProfit = grossProfit - fees - withdrawalFee - slippage
+  → OpportunityRepository.save()
 ```
 
 ---
 
 ## 3. Текущее состояние фронтенда
 
-Фронтенд — **бойлерплейт CRA** (`create-react-app`).  
-`App.tsx` содержит стандартную заглушку React.  
-Никакой кастомный UI ещё не реализован.  
-UI-библиотека (Ant Design / Material UI) не установлена.
+- **React 19 + TypeScript + Ant Design 6**
+- Компоненты: `AppLayout`, `OpportunitiesTable`, `Filters`, `ExchangeStatus`
+- REST-запросы через Axios (+ SSE через EventSource)
+- Таблица с сортировкой, цветовой индикацией спреда и netProfit, колонкой slippage
+- Фильтры: symbol, buy/sell exchange, min spread
+- Индикаторы статуса бирж (опрос каждые 5 сек)
+
+### Структура фронтенда
+
+```
+frontend/src/
+├── App.tsx                              # Состояние, фильтрация, SSE-подписка
+├── components/
+│   ├── AppLayout.tsx                    # Layout: Header + Sider + Content
+│   ├── OpportunitiesTable.tsx           # Ant Table: колонки + slippage
+│   ├── Filters.tsx                      # Select'ы + Slider minSpread
+│   └── ExchangeStatus.tsx               # Badge индикаторы подключения
+├── services/
+│   └── api.ts                           # REST + SSE клиент
+└── types/
+    └── index.ts                         # ArbitrageOpportunity, ExchangeStatus, OpportunityFilters
+```
 
 ---
 
 ## 4. Что предстоит (оставшиеся спринты)
 
-### Спринт 4: REST API, SSE и базовый фронтенд (MVP) — **СЛЕДУЮЩИЙ**
-- REST-эндпоинты: `/api/opportunities`, `/api/exchanges`, `/api/symbols`, `/api/stream/opportunities` (SSE)
-- CORS для `localhost:3000`
-- Actuator health/metrics
-- React: таблица возможностей, фильтры, SSE-подписка, индикаторы статуса бирж
-- **Это ключевой спринт — после него будет работающий MVP**
-
-### Спринт 5: Учёт комиссий и ликвидности
-- `FeeCalculator`, `WithdrawalFeeCalculator`, `LiquidityChecker`, `SlippageCalculator`, `VolumeLimiter`
-- Интеграция в `ArbitrageDetector` для пересчёта `netProfit`
-- Подписка на depth-потоки (стакан заявок)
-
-### Спринт 6: Исторические данные, статистика и графики
+### Спринт 6: Исторические данные, статистика и графики — **СЛЕДУЮЩИЙ**
 - PostgreSQL + Spring Data JPA
 - `StatisticsCollector`, эндпоинты `/api/statistics`
-- Recharts на фронтенде: графики спреда
+- Recharts на фронтенде: дашборд и графики спреда
 
 ### Спринт 7: Продвинутые функции и контейнеризация
 - Triangular arbitrage, уведомления, экспорт CSV/JSON, Docker
@@ -130,19 +147,25 @@ UI-библиотека (Ant Design / Material UI) не установлена.
 
 ## 5. Тесты
 
-**Всего: 81 тест, 0 failures.** Запуск: `cd backend && mvn test`
+**Всего: 100+ тестов, 0 failures.** Запуск: `cd backend && mvn test`
 
 | Группа тестов | Количество | Что проверяет |
 |--------------|-----------|---------------|
-| `BingXAdapterTest` | 12 | Парсинг bookTicker, нормализация символов, подписки |
-| `MexcAdapterTest` | 8 | Парсинг publicbookticker, обработчики, ack-сообщения |
+| `BingXAdapterTest` | 12 | Парсинг bookTicker, нормализация, подписки |
+| `MexcAdapterTest` | 8 | Парсинг publicbookticker, обработчики, ack |
 | `ExchangeAdapterFactoryTest` | 5 | Создание адаптеров, кэширование, уникальность |
-| `PriceNormalizerTest` | 6 | Группировка, нормализация BTC-USDT→BTCUSDT |
-| `ExchangeIntegrationTest` | 6 | Сквозной сценарий с 3 биржами + общий кэш |
-| `TickerCacheTest` | 10 | CRUD, TTL, evictExpired(), getFresh() |
-| `SpreadCalculatorTest` | 13 | Позитивный/негативный/нулевой спред, макс. объём, параметризация |
-| `ArbitrageDetectorTest` | 7 | 1/2/3 биржи, убыточные сценарии, множественные символы |
-| `ArbitragePipelineTest` | 7 | Полный пайплайн: ticker→cache→normalize→detect→repository |
+| `PriceNormalizerTest` | 6 | Группировка, нормализация символов |
+| `ExchangeIntegrationTest` | 6 | Сквозной сценарий с биржами + общий кэш |
+| `TickerCacheTest` | 10 | CRUD, TTL, evictExpired, getFresh |
+| `OrderBookCacheTest` | 6 | CRUD, TTL, evictExpired |
+| `SpreadCalculatorTest` | 13 | Позитивный/негативный/нулевой спред, макс. объём |
+| `FeeCalculatorTest` | 4 | Taker-комиссия для разных объёмов и бирж |
+| `WithdrawalFeeCalculatorTest` | 5 | Комиссия вывода по символам и биржам |
+| `LiquidityCheckerTest` | 5 | Достаточность/недостаточность ликвидности |
+| `SlippageCalculatorTest` | 6 | Проскальзывание на одном/нескольких уровнях, % |
+| `VolumeLimiterTest` | 5 | Фильтрация по minVolume |
+| `ArbitrageDetectorTest` | 7 | Детекция с учётом комиссий и ликвидности |
+| `ArbitragePipelineTest` | 7 | Полный пайплайн с fees и liquidity |
 
 ---
 
@@ -150,8 +173,18 @@ UI-библиотека (Ant Design / Material UI) не установлена.
 
 ```yaml
 symbols: BTCUSDT, ETHUSDT, SOLUSDT, BNBUSDT, XRPUSDT, ADAUSDT, DOGEUSDT
-exchanges: bingx (false), mexc (false)
-arbitrage: min-spread-percent: 0.1, ttl-seconds: 30, scan-interval-ms: 1000
+exchanges:
+  bingx: enabled: true, ws-url: wss://open-api-ws.bingx.com/market
+  mexc: enabled: true, ws-url: wss://wbs-api.mexc.com/ws
+arbitrage:
+  min-spread-percent: 0.1
+  ttl-seconds: 30
+  scan-interval-ms: 1000
+  default-trade-volume-usdt: 100
+  min-trade-volume-usdt: 10
+fees:
+  taker-percent: bingx: 0.1%, mexc: 0.1%
+  withdrawal: per-symbol: USDT (bingx: $1, mexc: $2), default-usdt: $2
 reconnect: initial-delay: 1s, max-delay: 60s, ping-interval: 180s
 ```
 
@@ -161,18 +194,18 @@ reconnect: initial-delay: 1s, max-delay: 60s, ping-interval: 180s
 
 | Файл | Зачем читать |
 |------|-------------|
-| `docs/technical-specification.md` | Полное ТЗ (351 строка) |
+| `docs/technical-specification.md` | Полное ТЗ |
 | `docs/sprints.md` | План всех 7 спринтов |
-| `backend/src/main/resources/application.yml` | Текущая конфигурация |
-| `backend/src/main/java/.../config/CoreConfig.java` | Все Spring-бины (точка входа в граф зависимостей) |
-| `backend/src/main/java/.../core/ArbitrageService.java` | Оркестратор арбитража |
+| `backend/src/main/resources/application.yml` | Текущая конфигурация (включая fees) |
+| `backend/src/main/java/.../config/CoreConfig.java` | Все Spring-бины |
+| `backend/src/main/java/.../core/ArbitrageDetector.java` | Ядро расчёта с fees/liquidity/slippage |
+| `backend/src/main/java/.../config/FeeConfig.java` | Конфигурация комиссий |
 | `backend/src/main/java/.../exchange/ExchangeAdapter.java` | Интерфейс адаптера биржи |
 
 ---
 
 ## 8. Известные TODO / Технический долг
 
-- **Дублирование URL бирж** — `ExchangeEnum.getWsUrl()` и `application.yml` дублируют URL. Нужно вынести в конфиг.
-- **Фронтенд** — полностью boilerplate. Ждёт Спринта 4.
-- **`netProfit` и `slippage`** — сейчас `netProfit = absoluteSpread` (без учёта комиссий), `slippage = 0`. Будет исправлено в Спринте 5.
+- **Дублирование URL бирж** — `ExchangeEnum.getWsUrl()` и `application.yml` дублируют URL.
+- **OrderBook depth** — используется bookTicker (1 уровень стакана), полноценный depth20 не реализован.
 - **Только кроссбиржевой арбитраж** — `ArbitrageType.INTRA_EXCHANGE` определён, но не реализован (Спринт 7).

@@ -1,5 +1,8 @@
 package com.arbitrage.screener.core;
 
+import com.arbitrage.screener.config.FeeConfig;
+import com.arbitrage.screener.entity.OrderBook;
+import com.arbitrage.screener.entity.OrderBookLevel;
 import com.arbitrage.screener.entity.Ticker;
 import com.arbitrage.screener.entity.TickerCache;
 import com.arbitrage.screener.exchange.*;
@@ -13,6 +16,8 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.time.Instant;
+import java.util.List;
 import java.util.EnumMap;
 import java.util.Map;
 
@@ -27,6 +32,7 @@ class ArbitragePipelineTest {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private TickerCache cache;
+    private OrderBookCache orderBookCache;
     private PriceNormalizer normalizer;
     private SpreadCalculator calculator;
     private ArbitrageDetector detector;
@@ -36,9 +42,31 @@ class ArbitragePipelineTest {
     @BeforeEach
     void setUp() {
         cache = new TickerCache(60);
+        orderBookCache = new OrderBookCache(60);
         normalizer = new PriceNormalizer(cache);
         calculator = new SpreadCalculator();
-        detector = new ArbitrageDetector(calculator);
+
+        var feeConfig = new FeeConfig();
+        feeConfig.getTakerPercent().put("bingx", new BigDecimal("0.1"));
+        feeConfig.getTakerPercent().put("mexc", new BigDecimal("0.1"));
+        feeConfig.getWithdrawal().setDefaultUsdt(new BigDecimal("2.0"));
+
+        var feeCalculator = new FeeCalculator(feeConfig);
+        var withdrawalCalculator = new WithdrawalFeeCalculator(feeConfig);
+        var liquidityChecker = new LiquidityChecker(orderBookCache);
+        var slippageCalculator = new SlippageCalculator();
+        var volumeLimiter = new VolumeLimiter(new BigDecimal("1"));
+
+        detector = new ArbitrageDetector(
+                calculator,
+                feeCalculator,
+                withdrawalCalculator,
+                liquidityChecker,
+                slippageCalculator,
+                volumeLimiter,
+                orderBookCache,
+                new BigDecimal("100")
+        );
         repository = new OpportunityRepository();
         service = new ArbitrageService(cache, normalizer, detector, repository);
     }
@@ -50,6 +78,7 @@ class ArbitragePipelineTest {
         @Test
         @DisplayName("Should detect profitable arbitrage from two exchange tickers")
         void shouldDetectProfitableArbitrage() {
+            seedLiquidity();
             feedMexcTicker("BTCUSDT", "50000.00", "50005.00");
             feedBingXTicker("BTC-USDT", "50010.00", "50015.00");
 
@@ -69,6 +98,7 @@ class ArbitragePipelineTest {
         @Test
         @DisplayName("Should detect no opportunities with unprofitable prices")
         void shouldDetectNoOpportunitiesWithUnprofitablePrices() {
+            seedLiquidity();
             feedMexcTicker("BTCUSDT", "50000.00", "50005.00");
             feedBingXTicker("BTC-USDT", "49995.00", "50005.00");
 
@@ -82,6 +112,7 @@ class ArbitragePipelineTest {
         @Test
         @DisplayName("Should detect opportunities from two exchanges")
         void shouldDetectFromTwoExchanges() {
+            seedLiquidity();
             feedMexcTicker("BTCUSDT", "49990.00", "49995.00");
             feedBingXTicker("BTC-USDT", "50005.00", "50010.00");
 
@@ -95,6 +126,7 @@ class ArbitragePipelineTest {
         @Test
         @DisplayName("Should filter opportunities by symbol")
         void shouldFilterBySymbol() {
+            seedLiquidity();
             feedMexcTicker("BTCUSDT", "50000.00", "50005.00");
             feedBingXTicker("BTC-USDT", "50010.00", "50015.00");
             feedMexcTicker("ETHUSDT", "3000.00", "3001.00");
@@ -112,6 +144,7 @@ class ArbitragePipelineTest {
         @Test
         @DisplayName("Should update existing opportunity on rescan")
         void shouldUpdateOnRescan() {
+            seedLiquidity();
             feedMexcTicker("BTCUSDT", "50000.00", "50005.00");
             feedBingXTicker("BTC-USDT", "50010.00", "50015.00");
 
@@ -159,7 +192,7 @@ class ArbitragePipelineTest {
         @DisplayName("Should track adapter statuses")
         void shouldTrackStatuses() {
             var factory = new ExchangeAdapterFactory();
-            var manager = new ExchangeManager(factory, cache);
+            var manager = new ExchangeManager(factory, cache, orderBookCache);
 
             assertFalse(manager.isRunning());
             assertEquals(0, manager.getActiveCount());
@@ -168,6 +201,23 @@ class ArbitragePipelineTest {
     }
 
     // --- Helpers ---
+
+    private void seedLiquidity() {
+        for (var exchange : new ExchangeEnum[]{ExchangeEnum.MEXC, ExchangeEnum.BINGX}) {
+            for (var symbol : new String[]{"BTCUSDT", "ETHUSDT"}) {
+                var price = symbol.equals("BTCUSDT") ? "50000.00" : "3000.00";
+                var p = new BigDecimal(price);
+                var q = new BigDecimal("100");
+                var orderBook = new OrderBook(
+                        exchange, symbol,
+                        List.of(new OrderBookLevel(p, q), new OrderBookLevel(p.subtract(new BigDecimal("1")), q)),
+                        List.of(new OrderBookLevel(p.add(new BigDecimal("1")), q), new OrderBookLevel(p.add(new BigDecimal("2")), q)),
+                        Instant.now()
+                );
+                orderBookCache.put(orderBook);
+            }
+        }
+    }
 
     private void feedBingXTicker(String symbol, String bidPrice, String askPrice) {
         var adapter = new BingXAdapter();
