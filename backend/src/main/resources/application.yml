@@ -14,7 +14,7 @@ exchanges:
     ws-url: wss://open-api-ws.bingx.com/market
   mexc:
     enabled: false
-    ws-url: wss://wbs.mexc.com/ws
+    ws-url: wss://wbs-api.mexc.com/ws
 symbols:
   - btcbusdt
   - ethbusdt

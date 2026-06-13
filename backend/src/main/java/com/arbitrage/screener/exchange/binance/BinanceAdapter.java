@@ -180,7 +180,7 @@ public class BinanceAdapter implements ExchangeAdapter {
 
     // --- Message Parsing ---
 
-    void handleMessage(String text) {
+    public void handleMessage(String text) {
         try {
             var root = OBJECT_MAPPER.readTree(text);
             var streamNode = root.get("stream");
@@ -194,7 +194,7 @@ public class BinanceAdapter implements ExchangeAdapter {
         }
     }
 
-    void handleClose(int statusCode, String reason) {
+    public void handleClose(int statusCode, String reason) {
         log.warn("WebSocket closed: code={}, reason={}", statusCode, reason);
         connected = false;
         stopPing();
@@ -203,7 +203,7 @@ public class BinanceAdapter implements ExchangeAdapter {
         }
     }
 
-    void handleError(Throwable error) {
+    public void handleError(Throwable error) {
         log.error("WebSocket error: {}", error.getMessage());
         connected = false;
         stopPing();
