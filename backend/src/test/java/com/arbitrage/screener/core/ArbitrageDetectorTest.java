@@ -33,8 +33,8 @@ class ArbitrageDetectorTest {
         void shouldReturnEmptyForSingleExchange() {
             var grouped = Map.of(
                     "BTCUSDT", Map.of(
-                            ExchangeEnum.BINANCE,
-                            createTicker(ExchangeEnum.BINANCE, "BTCUSDT", "50000.00", "50005.00")
+                            ExchangeEnum.MEXC,
+                            createTicker(ExchangeEnum.MEXC, "BTCUSDT", "50000.00", "50005.00")
                     )
             );
 
@@ -47,8 +47,8 @@ class ArbitrageDetectorTest {
         void shouldDetectOneOpportunity() {
             var grouped = Map.of(
                     "BTCUSDT", Map.of(
-                            ExchangeEnum.BINANCE,
-                            createTicker(ExchangeEnum.BINANCE, "BTCUSDT", "50000.00", "50005.00"),
+                            ExchangeEnum.MEXC,
+                            createTicker(ExchangeEnum.MEXC, "BTCUSDT", "50000.00", "50005.00"),
                             ExchangeEnum.BINGX,
                             createTicker(ExchangeEnum.BINGX, "BTCUSDT", "50010.00", "50015.00")
                     )
@@ -56,46 +56,44 @@ class ArbitrageDetectorTest {
 
             var opportunities = detector.detect(grouped);
 
-            // Both directions are checked: BINANCE→BINGX and BINGX→BINANCE
+            // Both directions are checked: MEXC→BINGX and BINGX→MEXC
             assertEquals(2, opportunities.size());
 
-            // Check profitable direction: buy BINANCE, sell BINGX
+            // Check profitable direction: buy MEXC, sell BINGX
             var profitable = opportunities.stream()
                     .filter(o -> o.spreadPercent().signum() > 0)
                     .findFirst()
                     .orElseThrow();
 
             assertEquals("BTCUSDT", profitable.symbol());
-            assertEquals(ExchangeEnum.BINANCE, profitable.buyExchange());
+            assertEquals(ExchangeEnum.MEXC, profitable.buyExchange());
             assertEquals(ExchangeEnum.BINGX, profitable.sellExchange());
             assertEquals(ArbitrageType.CROSS_EXCHANGE, profitable.type());
             assertNotNull(profitable.detectedAt());
         }
 
         @Test
-        @DisplayName("Should detect two profitable directions with three exchanges")
-        void shouldDetectWithThreeExchanges() {
+        @DisplayName("Should detect two profitable directions with two exchanges")
+        void shouldDetectWithTwoExchanges() {
             var grouped = Map.of(
                     "BTCUSDT", Map.of(
-                            ExchangeEnum.BINANCE,
-                            createTicker(ExchangeEnum.BINANCE, "BTCUSDT", "49990.00", "49995.00"),
-                            ExchangeEnum.BINGX,
-                            createTicker(ExchangeEnum.BINGX, "BTCUSDT", "50005.00", "50010.00"),
                             ExchangeEnum.MEXC,
-                            createTicker(ExchangeEnum.MEXC, "BTCUSDT", "50000.00", "50002.00")
+                            createTicker(ExchangeEnum.MEXC, "BTCUSDT", "49990.00", "49995.00"),
+                            ExchangeEnum.BINGX,
+                            createTicker(ExchangeEnum.BINGX, "BTCUSDT", "50005.00", "50010.00")
                     )
             );
 
             var opportunities = detector.detect(grouped);
 
-            // 3 exchanges = 3 pairs * 2 directions = 6 opportunities
-            assertEquals(6, opportunities.size());
+            // 2 exchanges = 1 pair * 2 directions = 2 opportunities
+            assertEquals(2, opportunities.size());
 
             var profitable = opportunities.stream()
                     .filter(o -> o.spreadPercent().signum() > 0)
                     .toList();
 
-            // The best buy is BINANCE (ask 49995), best sell is BINGX (bid 50005)
+            // The best buy is MEXC (ask 49995), best sell is BINGX (bid 50005)
             assertTrue(profitable.size() >= 1);
         }
 
@@ -104,8 +102,8 @@ class ArbitrageDetectorTest {
         void shouldHandleUnprofitableScenario() {
             var grouped = Map.of(
                     "BTCUSDT", Map.of(
-                            ExchangeEnum.BINANCE,
-                            createTicker(ExchangeEnum.BINANCE, "BTCUSDT", "50000.00", "50005.00"),
+                            ExchangeEnum.MEXC,
+                            createTicker(ExchangeEnum.MEXC, "BTCUSDT", "50000.00", "50005.00"),
                             ExchangeEnum.BINGX,
                             createTicker(ExchangeEnum.BINGX, "BTCUSDT", "49900.00", "50005.00")
                     )
@@ -127,14 +125,14 @@ class ArbitrageDetectorTest {
         void shouldHandleMultipleSymbols() {
             var grouped = Map.of(
                     "BTCUSDT", Map.of(
-                            ExchangeEnum.BINANCE,
-                            createTicker(ExchangeEnum.BINANCE, "BTCUSDT", "50000.00", "50005.00"),
+                            ExchangeEnum.MEXC,
+                            createTicker(ExchangeEnum.MEXC, "BTCUSDT", "50000.00", "50005.00"),
                             ExchangeEnum.BINGX,
                             createTicker(ExchangeEnum.BINGX, "BTCUSDT", "50010.00", "50015.00")
                     ),
                     "ETHUSDT", Map.of(
-                            ExchangeEnum.BINANCE,
-                            createTicker(ExchangeEnum.BINANCE, "ETHUSDT", "3000.00", "3001.00"),
+                            ExchangeEnum.MEXC,
+                            createTicker(ExchangeEnum.MEXC, "ETHUSDT", "3000.00", "3001.00"),
                             ExchangeEnum.BINGX,
                             createTicker(ExchangeEnum.BINGX, "ETHUSDT", "3005.00", "3007.00")
                     )
@@ -166,8 +164,8 @@ class ArbitrageDetectorTest {
         void shouldPopulateAllFields() {
             var grouped = Map.of(
                     "BTCUSDT", Map.of(
-                            ExchangeEnum.BINANCE,
-                            createTicker(ExchangeEnum.BINANCE, "BTCUSDT", "50000.00", "50005.00"),
+                            ExchangeEnum.MEXC,
+                            createTicker(ExchangeEnum.MEXC, "BTCUSDT", "50000.00", "50005.00"),
                             ExchangeEnum.BINGX,
                             createTicker(ExchangeEnum.BINGX, "BTCUSDT", "50010.00", "50015.00")
                     )
@@ -180,7 +178,7 @@ class ArbitrageDetectorTest {
                     .orElseThrow();
 
             assertEquals("BTCUSDT", opp.symbol());
-            assertEquals(ExchangeEnum.BINANCE, opp.buyExchange());
+            assertEquals(ExchangeEnum.MEXC, opp.buyExchange());
             assertEquals(ExchangeEnum.BINGX, opp.sellExchange());
             assertEquals(new BigDecimal("50005.00"), opp.buyPrice());
             assertEquals(new BigDecimal("50010.00"), opp.sellPrice());

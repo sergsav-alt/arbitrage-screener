@@ -1,0 +1,52 @@
+import React from 'react';
+import { Layout, Typography } from 'antd';
+import { ExchangeStatus } from './ExchangeStatus';
+import { Filters } from './Filters';
+import { OpportunityFilters } from '../types';
+
+const { Header, Sider, Content } = Layout;
+const { Title } = Typography;
+
+interface AppLayoutProps {
+  filters: OpportunityFilters;
+  onFiltersChange: (filters: OpportunityFilters) => void;
+  children: React.ReactNode;
+}
+
+export const AppLayout: React.FC<AppLayoutProps> = ({
+  filters,
+  onFiltersChange,
+  children,
+}) => {
+  return (
+    <Layout style={{ minHeight: '100vh' }}>
+      <Header
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          background: '#001529',
+          padding: '0 24px',
+        }}
+      >
+        <Title level={3} style={{ color: '#fff', margin: 0 }}>
+          Arbitrage Screener
+        </Title>
+      </Header>
+      <Layout>
+        <Sider
+          width={280}
+          style={{ background: '#fff', padding: '16px', overflow: 'auto' }}
+        >
+          <ExchangeStatus />
+          <Filters
+            filters={filters}
+            onChange={onFiltersChange}
+          />
+        </Sider>
+        <Content style={{ padding: '24px', background: '#f5f5f5' }}>
+          {children}
+        </Content>
+      </Layout>
+    </Layout>
+  );
+};

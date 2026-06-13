@@ -4,8 +4,12 @@ import com.arbitrage.screener.entity.ArbitrageOpportunity;
 import com.arbitrage.screener.entity.TickerCache;
 import com.arbitrage.screener.exchange.PriceNormalizer;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
 
 import java.util.Collection;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Consumer;
 
 /**
  * Сервис арбитража — оркестрирует процесс обнаружения возможностей:
@@ -13,12 +17,14 @@ import java.util.Collection;
  * сохраняет в репозиторий.
  */
 @Slf4j
+@Service
 public class ArbitrageService {
 
     private final TickerCache tickerCache;
     private final PriceNormalizer priceNormalizer;
     private final ArbitrageDetector detector;
     private final OpportunityRepository repository;
+    private final List<Consumer<Collection<ArbitrageOpportunity>>> scanListeners;
 
     public ArbitrageService(
             TickerCache tickerCache,
@@ -30,6 +36,15 @@ public class ArbitrageService {
         this.priceNormalizer = priceNormalizer;
         this.detector = detector;
         this.repository = repository;
+        this.scanListeners = new CopyOnWriteArrayList<>();
+    }
+
+    /**
+     * Регистрирует слушатель, вызываемый после каждого сканирования.
+     * Передаёт список всех текущих возможностей из репозитория.
+     */
+    public void onScanComplete(Consumer<Collection<ArbitrageOpportunity>> listener) {
+        scanListeners.add(listener);
     }
 
     /**
@@ -59,6 +74,10 @@ public class ArbitrageService {
 
         for (var opportunity : opportunities) {
             repository.save(opportunity);
+        }
+
+        if (!opportunities.isEmpty()) {
+            notifyListeners();
         }
 
         log.debug("Scan complete: {} tickers, {} symbols, {} opportunities",
@@ -93,5 +112,10 @@ public class ArbitrageService {
      */
     public int getOpportunityCount() {
         return repository.size();
+    }
+
+    private void notifyListeners() {
+        var all = repository.getAll();
+        scanListeners.forEach(listener -> listener.accept(all));
     }
 }

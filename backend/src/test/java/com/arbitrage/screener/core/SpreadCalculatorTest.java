@@ -30,7 +30,7 @@ class SpreadCalculatorTest {
         @Test
         @DisplayName("Should calculate positive spread")
         void shouldCalculatePositiveSpread() {
-            var buyTicker = createTicker(ExchangeEnum.BINANCE, "BTCUSDT", "50000.00", "50005.00");
+            var buyTicker = createTicker(ExchangeEnum.MEXC, "BTCUSDT", "50000.00", "50005.00");
             var sellTicker = createTicker(ExchangeEnum.BINGX, "BTCUSDT", "50010.00", "50015.00");
 
             var spread = calculator.calculateSpreadPercent(buyTicker, sellTicker);
@@ -43,7 +43,7 @@ class SpreadCalculatorTest {
         @Test
         @DisplayName("Should calculate negative spread (unprofitable)")
         void shouldCalculateNegativeSpread() {
-            var buyTicker = createTicker(ExchangeEnum.BINANCE, "BTCUSDT", "50000.00", "50005.00");
+            var buyTicker = createTicker(ExchangeEnum.MEXC, "BTCUSDT", "50000.00", "50005.00");
             var sellTicker = createTicker(ExchangeEnum.BINGX, "BTCUSDT", "49900.00", "49905.00");
 
             var spread = calculator.calculateSpreadPercent(buyTicker, sellTicker);
@@ -55,7 +55,7 @@ class SpreadCalculatorTest {
         @Test
         @DisplayName("Should calculate zero spread (same prices)")
         void shouldCalculateZeroSpread() {
-            var buyTicker = createTicker(ExchangeEnum.BINANCE, "BTCUSDT", "50000.00", "50000.00");
+            var buyTicker = createTicker(ExchangeEnum.MEXC, "BTCUSDT", "50000.00", "50000.00");
             var sellTicker = createTicker(ExchangeEnum.BINGX, "BTCUSDT", "50000.00", "50000.00");
 
             var spread = calculator.calculateSpreadPercent(buyTicker, sellTicker);
@@ -66,7 +66,7 @@ class SpreadCalculatorTest {
         @Test
         @DisplayName("Should handle zero buy price gracefully")
         void shouldHandleZeroBuyPrice() {
-            var buyTicker = createTicker(ExchangeEnum.BINANCE, "BTCUSDT", "0", "0");
+            var buyTicker = createTicker(ExchangeEnum.MEXC, "BTCUSDT", "0", "0");
             var sellTicker = createTicker(ExchangeEnum.BINGX, "BTCUSDT", "50000.00", "50001.00");
 
             var spread = calculator.calculateSpreadPercent(buyTicker, sellTicker);
@@ -83,7 +83,7 @@ class SpreadCalculatorTest {
                 "50000, 49500, -1.0000",   // -1% spread (unprofitable)
         })
         void shouldCalculateVariousSpreads(String buyAsk, String sellBid, String expected) {
-            var buyTicker = new Ticker(ExchangeEnum.BINANCE, "BTCUSDT",
+            var buyTicker = new Ticker(ExchangeEnum.MEXC, "BTCUSDT",
                     new BigDecimal("0"), new BigDecimal("1"),
                     new BigDecimal(buyAsk), new BigDecimal("1"),
                     Instant.now());
@@ -104,7 +104,7 @@ class SpreadCalculatorTest {
         @Test
         @DisplayName("Should calculate absolute positive spread")
         void shouldCalculateAbsolutePositiveSpread() {
-            var buyTicker = createTicker(ExchangeEnum.BINANCE, "BTCUSDT", "50000.00", "50005.00");
+            var buyTicker = createTicker(ExchangeEnum.MEXC, "BTCUSDT", "50000.00", "50005.00");
             var sellTicker = createTicker(ExchangeEnum.BINGX, "BTCUSDT", "50010.00", "50015.00");
 
             var spread = calculator.calculateAbsoluteSpread(buyTicker, sellTicker);
@@ -116,7 +116,7 @@ class SpreadCalculatorTest {
         @Test
         @DisplayName("Should calculate negative absolute spread")
         void shouldCalculateNegativeAbsoluteSpread() {
-            var buyTicker = createTicker(ExchangeEnum.BINANCE, "BTCUSDT", "50000.00", "50005.00");
+            var buyTicker = createTicker(ExchangeEnum.MEXC, "BTCUSDT", "50000.00", "50005.00");
             var sellTicker = createTicker(ExchangeEnum.BINGX, "BTCUSDT", "49900.00", "49905.00");
 
             var spread = calculator.calculateAbsoluteSpread(buyTicker, sellTicker);
@@ -132,7 +132,7 @@ class SpreadCalculatorTest {
         @Test
         @DisplayName("Should return min of ask and bid quantities")
         void shouldReturnMinVolume() {
-            var buyTicker = new Ticker(ExchangeEnum.BINANCE, "BTCUSDT",
+            var buyTicker = new Ticker(ExchangeEnum.MEXC, "BTCUSDT",
                     new BigDecimal("0"), new BigDecimal("100"),
                     new BigDecimal("50000"), new BigDecimal("2.5"),
                     Instant.now());
@@ -155,7 +155,7 @@ class SpreadCalculatorTest {
         @Test
         @DisplayName("Should be profitable when spread > 0")
         void shouldBeProfitable() {
-            var buyTicker = createTicker(ExchangeEnum.BINANCE, "BTCUSDT", "50000.00", "50005.00");
+            var buyTicker = createTicker(ExchangeEnum.MEXC, "BTCUSDT", "50000.00", "50005.00");
             var sellTicker = createTicker(ExchangeEnum.BINGX, "BTCUSDT", "50010.00", "50015.00");
 
             assertTrue(calculator.isProfitable(buyTicker, sellTicker));
@@ -164,7 +164,7 @@ class SpreadCalculatorTest {
         @Test
         @DisplayName("Should not be profitable when spread <= 0")
         void shouldNotBeProfitable() {
-            var buyTicker = createTicker(ExchangeEnum.BINANCE, "BTCUSDT", "50000.00", "50000.00");
+            var buyTicker = createTicker(ExchangeEnum.MEXC, "BTCUSDT", "50000.00", "50000.00");
             var sellTicker = createTicker(ExchangeEnum.BINGX, "BTCUSDT", "50000.00", "50000.00");
 
             assertFalse(calculator.isProfitable(buyTicker, sellTicker));

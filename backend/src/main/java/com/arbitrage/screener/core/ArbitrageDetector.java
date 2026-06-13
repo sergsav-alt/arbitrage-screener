@@ -27,7 +27,7 @@ public class ArbitrageDetector {
     /**
      * Находит все арбитражные возможности среди сгруппированных тикеров.
      *
-     * @param groupedTickers тикеры, сгруппированные по символу (BTCUSDT → {BINANCE: ticker, BINGX: ticker})
+     * @param groupedTickers тикеры, сгруппированные по символу (BTCUSDT → {MEXC: ticker, BINGX: ticker})
      * @return список найденных возможностей (включая убыточные)
      */
     public List<ArbitrageOpportunity> detect(Map<String, Map<ExchangeEnum, Ticker>> groupedTickers) {

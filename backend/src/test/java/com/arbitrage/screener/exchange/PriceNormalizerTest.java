@@ -25,9 +25,9 @@ class PriceNormalizerTest {
     @Test
     @DisplayName("Should group tickers by symbol")
     void shouldGroupBySymbol() {
-        cache.put(createTicker(ExchangeEnum.BINANCE, "BTCUSDT", "50000.00"));
+        cache.put(createTicker(ExchangeEnum.MEXC, "BTCUSDT", "50000.00"));
         cache.put(createTicker(ExchangeEnum.BINGX, "BTCUSDT", "50010.00"));
-        cache.put(createTicker(ExchangeEnum.BINANCE, "ETHUSDT", "3000.00"));
+        cache.put(createTicker(ExchangeEnum.MEXC, "ETHUSDT", "3000.00"));
 
         var grouped = normalizer.groupBySymbol();
 
@@ -37,7 +37,7 @@ class PriceNormalizerTest {
 
         var btcTickers = grouped.get("BTCUSDT");
         assertEquals(2, btcTickers.size());
-        assertTrue(btcTickers.containsKey(ExchangeEnum.BINANCE));
+        assertTrue(btcTickers.containsKey(ExchangeEnum.MEXC));
         assertTrue(btcTickers.containsKey(ExchangeEnum.BINGX));
     }
 
@@ -45,7 +45,7 @@ class PriceNormalizerTest {
     @DisplayName("Should normalize BingX symbol format (BTC-USDT → BTCUSDT)")
     void shouldNormalizeBingXSymbol() {
         cache.put(createTicker(ExchangeEnum.BINGX, "BTC-USDT", "50010.00"));
-        cache.put(createTicker(ExchangeEnum.BINANCE, "BTCUSDT", "50000.00"));
+        cache.put(createTicker(ExchangeEnum.MEXC, "BTCUSDT", "50000.00"));
 
         var grouped = normalizer.groupBySymbol();
 
@@ -57,9 +57,9 @@ class PriceNormalizerTest {
     @Test
     @DisplayName("Should return tickers for specific symbol")
     void shouldGetTickersForSymbol() {
-        cache.put(createTicker(ExchangeEnum.BINANCE, "BTCUSDT", "50000.00"));
+        cache.put(createTicker(ExchangeEnum.MEXC, "BTCUSDT", "50000.00"));
         cache.put(createTicker(ExchangeEnum.BINGX, "BTC-USDT", "50010.00"));
-        cache.put(createTicker(ExchangeEnum.BINANCE, "ETHUSDT", "3000.00"));
+        cache.put(createTicker(ExchangeEnum.MEXC, "ETHUSDT", "3000.00"));
 
         var btcTickers = normalizer.getTickersForSymbol("BTCUSDT");
         assertEquals(2, btcTickers.size());
@@ -71,7 +71,7 @@ class PriceNormalizerTest {
     @Test
     @DisplayName("Should return empty for unknown symbol")
     void shouldReturnEmptyForUnknownSymbol() {
-        cache.put(createTicker(ExchangeEnum.BINANCE, "BTCUSDT", "50000.00"));
+        cache.put(createTicker(ExchangeEnum.MEXC, "BTCUSDT", "50000.00"));
 
         var tickers = normalizer.getTickersForSymbol("UNKNOWN");
         assertTrue(tickers.isEmpty());

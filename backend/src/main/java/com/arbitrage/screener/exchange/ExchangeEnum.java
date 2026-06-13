@@ -1,7 +1,6 @@
 package com.arbitrage.screener.exchange;
 
 public enum ExchangeEnum {
-    BINANCE("Binance", "wss://stream.binance.com:9443/ws"),
     BINGX("BingX", "wss://open-api-ws.bingx.com/market"),
     MEXC("MEXC", "wss://wbs-api.mexc.com/ws");
 

@@ -6,24 +6,14 @@ server:
   port: 8080
 
 exchanges:
-  binance:
-    enabled: true
-    ws-url: wss://stream.binance.com:9443/ws
   bingx:
-    enabled: false
+    enabled: true
     ws-url: wss://open-api-ws.bingx.com/market
   mexc:
-    enabled: false
+    enabled: true
     ws-url: wss://wbs-api.mexc.com/ws
 
-symbols:
-  - BTCUSDT
-  - ETHUSDT
-  - SOLUSDT
-  - BNBUSDT
-  - XRPUSDT
-  - ADAUSDT
-  - DOGEUSDT
+symbols: BTCUSDT,ETHUSDT,SOLUSDT,BNBUSDT,XRPUSDT,ADAUSDT,DOGEUSDT
 
 arbitrage:
   min-spread-percent: 0.1
@@ -34,6 +24,15 @@ reconnect:
   initial-delay-seconds: 1
   max-delay-seconds: 60
   ping-interval-seconds: 180
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics
+  endpoint:
+    health:
+      show-details: always
 
 logging:
   level:

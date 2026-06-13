@@ -1,6 +1,7 @@
 package com.arbitrage.screener.entity;
 
 import com.arbitrage.screener.exchange.ExchangeEnum;
+import lombok.Getter;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -11,12 +12,13 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Потокобезопасное in-memory хранилище последних тикеров с бирж.
- * Ключ: exchange:symbol (например, "BINANCE:BTCUSDT").
+ * Ключ: exchange:symbol (например, "MEXC:BTCUSDT").
  * Поддерживает TTL — автоматическое удаление устаревших тикеров.
  */
 public class TickerCache {
 
     private final Map<String, Ticker> cache = new ConcurrentHashMap<>();
+    @Getter
     private final long ttlSeconds;
 
     public TickerCache() {
@@ -75,10 +77,6 @@ public class TickerCache {
                 .map(Ticker::timestamp)
                 .max(Instant::compareTo)
                 .orElse(null);
-    }
-
-    public long getTtlSeconds() {
-        return ttlSeconds;
     }
 
     private boolean isExpired(Ticker ticker) {

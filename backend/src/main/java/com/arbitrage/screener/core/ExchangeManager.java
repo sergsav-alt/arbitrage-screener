@@ -6,6 +6,7 @@ import com.arbitrage.screener.exchange.ExchangeAdapter;
 import com.arbitrage.screener.exchange.ExchangeAdapterFactory;
 import com.arbitrage.screener.exchange.ExchangeEnum;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Map;
@@ -16,6 +17,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * Управляет стартом/стопом адаптеров, подписками и маршрутизацией тикеров в кэш.
  */
 @Slf4j
+@Service
 public class ExchangeManager {
 
     private final ExchangeAdapterFactory adapterFactory;

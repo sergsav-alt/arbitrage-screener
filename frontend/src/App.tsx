@@ -1,26 +1,49 @@
-import React from 'react';
-import logo from './logo.svg';
-import './App.css';
+import React, { useEffect, useState } from 'react';
+import { AppLayout } from './components/AppLayout';
+import { OpportunitiesTable } from './components/OpportunitiesTable';
+import { getOpportunities, subscribeOpportunities } from './services/api';
+import { ArbitrageOpportunity, OpportunityFilters } from './types';
 
-function App() {
+const App: React.FC = () => {
+  const [opportunities, setOpportunities] = useState<ArbitrageOpportunity[]>([]);
+  const [filters, setFilters] = useState<OpportunityFilters>({});
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getOpportunities()
+      .then(setOpportunities)
+      .catch(console.error)
+      .finally(() => setLoading(false));
+
+    const es = subscribeOpportunities(
+      (data) => {
+        setOpportunities(data);
+        setLoading(false);
+      },
+      (error) => {
+        console.error('SSE error, reconnecting...', error);
+      }
+    );
+
+    return () => es.close();
+  }, []);
+
+  const filteredOpportunities = opportunities.filter((o) => {
+    if (filters.symbol && o.symbol !== filters.symbol) return false;
+    if (filters.buyExchange && o.buyExchange !== filters.buyExchange) return false;
+    if (filters.sellExchange && o.sellExchange !== filters.sellExchange) return false;
+    if (filters.minSpread !== undefined && o.spreadPercent < filters.minSpread) return false;
+    return true;
+  });
+
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.tsx</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
-    </div>
+    <AppLayout filters={filters} onFiltersChange={setFilters}>
+      <OpportunitiesTable
+        opportunities={filteredOpportunities}
+        loading={loading}
+      />
+    </AppLayout>
   );
-}
+};
 
 export default App;

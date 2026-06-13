@@ -3,7 +3,6 @@ package com.arbitrage.screener.core;
 import com.arbitrage.screener.entity.Ticker;
 import com.arbitrage.screener.entity.TickerCache;
 import com.arbitrage.screener.exchange.*;
-import com.arbitrage.screener.exchange.binance.BinanceAdapter;
 import com.arbitrage.screener.exchange.bingx.BingXAdapter;
 import com.arbitrage.screener.exchange.mexc.MexcAdapter;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -51,7 +50,7 @@ class ArbitragePipelineTest {
         @Test
         @DisplayName("Should detect profitable arbitrage from two exchange tickers")
         void shouldDetectProfitableArbitrage() {
-            feedBinanceTicker("BTCUSDT", "50000.00", "50005.00");
+            feedMexcTicker("BTCUSDT", "50000.00", "50005.00");
             feedBingXTicker("BTC-USDT", "50010.00", "50015.00");
 
             var count = service.scan();
@@ -62,7 +61,7 @@ class ArbitragePipelineTest {
 
             var opp = profitable.iterator().next();
             assertEquals("BTCUSDT", opp.symbol());
-            assertEquals(ExchangeEnum.BINANCE, opp.buyExchange());
+            assertEquals(ExchangeEnum.MEXC, opp.buyExchange());
             assertEquals(ExchangeEnum.BINGX, opp.sellExchange());
             assertTrue(opp.spreadPercent().compareTo(BigDecimal.ZERO) > 0);
         }
@@ -70,7 +69,7 @@ class ArbitragePipelineTest {
         @Test
         @DisplayName("Should detect no opportunities with unprofitable prices")
         void shouldDetectNoOpportunitiesWithUnprofitablePrices() {
-            feedBinanceTicker("BTCUSDT", "50000.00", "50005.00");
+            feedMexcTicker("BTCUSDT", "50000.00", "50005.00");
             feedBingXTicker("BTC-USDT", "49995.00", "50005.00");
 
             var count = service.scan();
@@ -81,25 +80,24 @@ class ArbitragePipelineTest {
         }
 
         @Test
-        @DisplayName("Should detect opportunities from three exchanges")
-        void shouldDetectFromThreeExchanges() {
-            feedBinanceTicker("BTCUSDT", "49990.00", "49995.00");
+        @DisplayName("Should detect opportunities from two exchanges")
+        void shouldDetectFromTwoExchanges() {
+            feedMexcTicker("BTCUSDT", "49990.00", "49995.00");
             feedBingXTicker("BTC-USDT", "50005.00", "50010.00");
-            feedMexcTicker("BTCUSDT", "50000.00", "50002.00");
 
             var count = service.scan();
-            assertEquals(6, count); // 3 exchanges × 2 directions
+            assertEquals(2, count); // 2 exchanges × 2 directions
 
             var allOpps = service.getOpportunities();
-            assertEquals(6, allOpps.size());
+            assertEquals(2, allOpps.size());
         }
 
         @Test
         @DisplayName("Should filter opportunities by symbol")
         void shouldFilterBySymbol() {
-            feedBinanceTicker("BTCUSDT", "50000.00", "50005.00");
+            feedMexcTicker("BTCUSDT", "50000.00", "50005.00");
             feedBingXTicker("BTC-USDT", "50010.00", "50015.00");
-            feedBinanceTicker("ETHUSDT", "3000.00", "3001.00");
+            feedMexcTicker("ETHUSDT", "3000.00", "3001.00");
             feedBingXTicker("ETH-USDT", "3005.00", "3007.00");
 
             service.scan();
@@ -114,13 +112,13 @@ class ArbitragePipelineTest {
         @Test
         @DisplayName("Should update existing opportunity on rescan")
         void shouldUpdateOnRescan() {
-            feedBinanceTicker("BTCUSDT", "50000.00", "50005.00");
+            feedMexcTicker("BTCUSDT", "50000.00", "50005.00");
             feedBingXTicker("BTC-USDT", "50010.00", "50015.00");
 
             service.scan();
 
             // New price: higher spread
-            feedBinanceTicker("BTCUSDT", "50000.00", "50001.00");
+            feedMexcTicker("BTCUSDT", "50000.00", "50001.00");
             feedBingXTicker("BTC-USDT", "50015.00", "50020.00");
 
             service.scan();
@@ -137,13 +135,13 @@ class ArbitragePipelineTest {
         @Test
         @DisplayName("Should evict expired tickers before scan")
         void shouldEvictExpiredTickers() {
-            feedBinanceTicker("BTCUSDT", "50000.00", "50005.00");
+            feedMexcTicker("BTCUSDT", "50000.00", "50005.00");
 
             assertEquals(1, cache.size());
 
             // Force eviction by creating a short TTL cache
             var shortCache = new TickerCache(0);
-            shortCache.put(new Ticker(ExchangeEnum.BINANCE, "BTCUSDT",
+            shortCache.put(new Ticker(ExchangeEnum.MEXC, "BTCUSDT",
                     new BigDecimal("50000"), new BigDecimal("1"),
                     new BigDecimal("50005"), new BigDecimal("1"),
                     java.time.Instant.now().minusSeconds(60)));
@@ -170,23 +168,6 @@ class ArbitragePipelineTest {
     }
 
     // --- Helpers ---
-
-    private void feedBinanceTicker(String symbol, String bidPrice, String askPrice) {
-        var adapter = new BinanceAdapter();
-        adapter.onTicker(cache::put);
-
-        var data = MAPPER.createObjectNode()
-                .put("e", "24hrMiniTicker")
-                .put("s", symbol.toUpperCase())
-                .put("b", bidPrice)
-                .put("B", "1.5")
-                .put("a", askPrice)
-                .put("A", "2.0");
-        var root = MAPPER.createObjectNode()
-                .put("stream", symbol.toLowerCase() + "@miniTicker")
-                .set("data", data);
-        adapter.handleMessage(root.toString());
-    }
 
     private void feedBingXTicker(String symbol, String bidPrice, String askPrice) {
         var adapter = new BingXAdapter();

@@ -1,6 +1,5 @@
 package com.arbitrage.screener.exchange;
 
-import com.arbitrage.screener.exchange.binance.BinanceAdapter;
 import com.arbitrage.screener.exchange.bingx.BingXAdapter;
 import com.arbitrage.screener.exchange.mexc.MexcAdapter;
 
@@ -25,7 +24,6 @@ public class ExchangeAdapterFactory {
 
     private ExchangeAdapter createAdapter(ExchangeEnum exchange) {
         return switch (exchange) {
-            case BINANCE -> new BinanceAdapter();
             case BINGX -> new BingXAdapter();
             case MEXC -> new MexcAdapter();
         };

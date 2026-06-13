@@ -25,7 +25,7 @@ class TickerCacheTest {
 
             cache.put(ticker);
 
-            var retrieved = cache.get(ExchangeEnum.BINANCE, "BTCUSDT");
+            var retrieved = cache.get(ExchangeEnum.BINGX, "BTCUSDT");
             assertNotNull(retrieved);
             assertEquals("BTCUSDT", retrieved.symbol());
             assertEquals(new BigDecimal("50000.00"), retrieved.bidPrice());
@@ -35,7 +35,7 @@ class TickerCacheTest {
         @DisplayName("Should return null for missing ticker")
         void shouldReturnNullForMissing() {
             var cache = new TickerCache();
-            assertNull(cache.get(ExchangeEnum.BINANCE, "BTCUSDT"));
+            assertNull(cache.get(ExchangeEnum.BINGX, "BTCUSDT"));
         }
 
         @Test
@@ -70,7 +70,7 @@ class TickerCacheTest {
         void shouldReturnNullForExpiredTicker() {
             var cache = new TickerCache(1);
             var expiredTicker = new Ticker(
-                    ExchangeEnum.BINANCE, "BTCUSDT",
+                    ExchangeEnum.BINGX, "BTCUSDT",
                     new BigDecimal("50000.00"), new BigDecimal("1.0"),
                     new BigDecimal("50010.00"), new BigDecimal("2.0"),
                     Instant.now().minus(5, ChronoUnit.SECONDS)
@@ -78,7 +78,7 @@ class TickerCacheTest {
 
             cache.put(expiredTicker);
 
-            assertNull(cache.get(ExchangeEnum.BINANCE, "BTCUSDT"));
+            assertNull(cache.get(ExchangeEnum.BINGX, "BTCUSDT"));
         }
 
         @Test
@@ -89,7 +89,7 @@ class TickerCacheTest {
 
             cache.put(freshTicker);
 
-            assertNotNull(cache.get(ExchangeEnum.BINANCE, "BTCUSDT"));
+            assertNotNull(cache.get(ExchangeEnum.BINGX, "BTCUSDT"));
         }
 
         @Test
@@ -97,7 +97,7 @@ class TickerCacheTest {
         void shouldEvictExpired() {
             var cache = new TickerCache(1);
             var expiredTicker = new Ticker(
-                    ExchangeEnum.BINANCE, "BTCUSDT",
+                    ExchangeEnum.BINGX, "BTCUSDT",
                     new BigDecimal("50000.00"), new BigDecimal("1.0"),
                     new BigDecimal("50010.00"), new BigDecimal("2.0"),
                     Instant.now().minus(10, ChronoUnit.SECONDS)
@@ -112,7 +112,7 @@ class TickerCacheTest {
             cache.evictExpired();
 
             assertEquals(1, cache.size());
-            assertNotNull(cache.get(ExchangeEnum.BINANCE, "ETHUSDT"));
+            assertNotNull(cache.get(ExchangeEnum.BINGX, "ETHUSDT"));
         }
 
         @Test
@@ -120,7 +120,7 @@ class TickerCacheTest {
         void getFreshShouldFilterExpired() {
             var cache = new TickerCache(1);
             var expiredTicker = new Ticker(
-                    ExchangeEnum.BINANCE, "BTCUSDT",
+                    ExchangeEnum.BINGX, "BTCUSDT",
                     new BigDecimal("50000.00"), new BigDecimal("1.0"),
                     new BigDecimal("50010.00"), new BigDecimal("2.0"),
                     Instant.now().minus(10, ChronoUnit.SECONDS)
@@ -158,8 +158,8 @@ class TickerCacheTest {
 
             cache.put(ticker);
 
-            assertNotNull(cache.get(ExchangeEnum.BINANCE, "BTCUSDT"));
-            assertNotNull(cache.get(ExchangeEnum.BINANCE, "btcusdt"));
+            assertNotNull(cache.get(ExchangeEnum.BINGX, "BTCUSDT"));
+            assertNotNull(cache.get(ExchangeEnum.BINGX, "btcusdt"));
         }
     }
 
@@ -167,7 +167,7 @@ class TickerCacheTest {
 
     private Ticker createTicker(String symbol, String bidPrice) {
         return new Ticker(
-                ExchangeEnum.BINANCE, symbol,
+                ExchangeEnum.BINGX, symbol,
                 new BigDecimal(bidPrice), new BigDecimal("1.0"),
                 new BigDecimal("50010.00"), new BigDecimal("2.0"),
                 Instant.now()

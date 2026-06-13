@@ -33,7 +33,6 @@ class ExchangeIntegrationTest {
         normalizer = new PriceNormalizer(cache);
         allTickers = new ArrayList<>();
 
-        registerHandlers(ExchangeEnum.BINANCE);
         registerHandlers(ExchangeEnum.BINGX);
         registerHandlers(ExchangeEnum.MEXC);
     }
@@ -47,17 +46,13 @@ class ExchangeIntegrationTest {
     }
 
     @Test
-    @DisplayName("Should create three distinct adapters")
-    void shouldCreateThreeAdapters() {
-        var binance = factory.getAdapter(ExchangeEnum.BINANCE);
+    @DisplayName("Should create two distinct adapters")
+    void shouldCreateTwoAdapters() {
         var bingx = factory.getAdapter(ExchangeEnum.BINGX);
         var mexc = factory.getAdapter(ExchangeEnum.MEXC);
 
-        assertNotSame(binance, bingx);
         assertNotSame(bingx, mexc);
-        assertNotSame(binance, mexc);
 
-        assertEquals(ExchangeEnum.BINANCE, binance.getExchange());
         assertEquals(ExchangeEnum.BINGX, bingx.getExchange());
         assertEquals(ExchangeEnum.MEXC, mexc.getExchange());
     }
@@ -65,19 +60,17 @@ class ExchangeIntegrationTest {
     @Test
     @DisplayName("Should route tickers from all exchanges to common cache")
     void shouldRouteToCommonCache() {
-        simulateBinanceTicker("BTCUSDT", "50000.00", "50010.00");
         simulateBingXTicker("BTC-USDT", "50005.00", "50015.00");
         simulateMexcTicker("BTCUSDT", "49995.00", "50005.00");
 
-        assertEquals(3, allTickers.size());
-        assertEquals(3, cache.size());
+        assertEquals(2, allTickers.size());
+        assertEquals(2, cache.size());
 
         var grouped = normalizer.groupBySymbol();
         assertEquals(1, grouped.size());
 
         var btcTickers = grouped.get("BTCUSDT");
-        assertEquals(3, btcTickers.size());
-        assertTrue(btcTickers.containsKey(ExchangeEnum.BINANCE));
+        assertEquals(2, btcTickers.size());
         assertTrue(btcTickers.containsKey(ExchangeEnum.BINGX));
         assertTrue(btcTickers.containsKey(ExchangeEnum.MEXC));
     }
@@ -85,7 +78,6 @@ class ExchangeIntegrationTest {
     @Test
     @DisplayName("Should normalize different symbol formats to common key")
     void shouldNormalizeSymbolFormats() {
-        simulateBinanceTicker("ETHUSDT", "3000.00", "3001.00");
         simulateBingXTicker("ETH-USDT", "3002.00", "3003.00");
         simulateMexcTicker("ETHUSDT", "2999.00", "3000.00");
 
@@ -94,26 +86,21 @@ class ExchangeIntegrationTest {
         assertNotNull(grouped.get("ETHUSDT"));
 
         var tickers = grouped.get("ETHUSDT");
-        assertEquals(3, tickers.size());
+        assertEquals(2, tickers.size());
     }
 
     @Test
     @DisplayName("Should handle multiple symbols across exchanges")
     void shouldHandleMultipleSymbols() {
-        simulateBinanceTicker("BTCUSDT", "50000.00", "50010.00");
-        simulateBinanceTicker("ETHUSDT", "3000.00", "3001.00");
         simulateBingXTicker("BTC-USDT", "50005.00", "50015.00");
         simulateMexcTicker("BTCUSDT", "49995.00", "50005.00");
 
         var grouped = normalizer.groupBySymbol();
 
-        assertEquals(2, grouped.size());
+        assertEquals(1, grouped.size());
 
         var btcTickers = grouped.get("BTCUSDT");
-        assertEquals(3, btcTickers.size());
-
-        var ethTickers = grouped.get("ETHUSDT");
-        assertEquals(1, ethTickers.size());
+        assertEquals(2, btcTickers.size());
     }
 
     @Test
@@ -121,7 +108,6 @@ class ExchangeIntegrationTest {
     void shouldDisconnectAll() {
         factory.disconnectAll();
 
-        assertFalse(factory.getAdapter(ExchangeEnum.BINANCE).isConnected());
         assertFalse(factory.getAdapter(ExchangeEnum.BINGX).isConnected());
         assertFalse(factory.getAdapter(ExchangeEnum.MEXC).isConnected());
     }
@@ -135,21 +121,6 @@ class ExchangeIntegrationTest {
     }
 
     // --- Message Simulation Helpers ---
-
-    private void simulateBinanceTicker(String symbol, String bidPrice, String askPrice) {
-        var binance = (com.arbitrage.screener.exchange.binance.BinanceAdapter) factory.getAdapter(ExchangeEnum.BINANCE);
-        var data = MAPPER.createObjectNode()
-                .put("e", "24hrMiniTicker")
-                .put("s", symbol.toUpperCase())
-                .put("b", bidPrice)
-                .put("B", "1.5")
-                .put("a", askPrice)
-                .put("A", "2.0");
-        var root = MAPPER.createObjectNode()
-                .put("stream", symbol.toLowerCase() + "@miniTicker")
-                .set("data", data);
-        binance.handleMessage(root.toString());
-    }
 
     private void simulateBingXTicker(String symbol, String bidPrice, String askPrice) {
         var bingx = (com.arbitrage.screener.exchange.bingx.BingXAdapter) factory.getAdapter(ExchangeEnum.BINGX);
