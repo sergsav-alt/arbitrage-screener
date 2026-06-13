@@ -15,13 +15,25 @@ exchanges:
   mexc:
     enabled: false
     ws-url: wss://wbs-api.mexc.com/ws
+
 symbols:
-  - btcbusdt
-  - ethbusdt
+  - BTCUSDT
+  - ETHUSDT
+  - SOLUSDT
+  - BNBUSDT
+  - XRPUSDT
+  - ADAUSDT
+  - DOGEUSDT
+
+arbitrage:
+  min-spread-percent: 0.1
+  ttl-seconds: 30
+  scan-interval-ms: 1000
+
 reconnect:
   initial-delay-seconds: 1
   max-delay-seconds: 60
-ping-interval-seconds: 180
+  ping-interval-seconds: 180
 
 logging:
   level:
