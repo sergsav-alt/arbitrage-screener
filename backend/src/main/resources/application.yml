@@ -1,0 +1,28 @@
+spring:
+  application:
+    name: backend
+
+server:
+  port: 8080
+
+exchanges:
+  binance:
+    enabled: true
+    ws-url: wss://stream.binance.com:9443/ws
+  bingx:
+    enabled: false
+    ws-url: wss://open-api-ws.bingx.com/market
+  mexc:
+    enabled: false
+    ws-url: wss://wbs.mexc.com/ws
+symbols:
+  - btcbusdt
+  - ethbusdt
+reconnect:
+  initial-delay-seconds: 1
+  max-delay-seconds: 60
+ping-interval-seconds: 180
+
+logging:
+  level:
+    com.arbitrage.screener: INFO
