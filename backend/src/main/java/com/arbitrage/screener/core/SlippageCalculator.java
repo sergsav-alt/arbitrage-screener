@@ -1,7 +1,7 @@
 package com.arbitrage.screener.core;
 
-import com.arbitrage.screener.entity.OrderBook;
-import com.arbitrage.screener.entity.OrderBookLevel;
+import com.arbitrage.screener.model.OrderBook;
+import com.arbitrage.screener.model.OrderBookLevel;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;

@@ -1,6 +1,21 @@
 spring:
   application:
     name: backend
+  datasource:
+    url: jdbc:postgresql://localhost:5432/arbitrage_screener
+    username: postgres
+    password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+    open-in-view: false
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog-master.yaml
 
 server:
   port: 8080
@@ -46,6 +61,9 @@ management:
   endpoint:
     health:
       show-details: always
+
+statistics:
+  collect-interval-ms: 60000
 
 logging:
   level:

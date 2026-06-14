@@ -1,6 +1,6 @@
 package com.arbitrage.screener.core;
 
-import com.arbitrage.screener.entity.Ticker;
+import com.arbitrage.screener.model.Ticker;
 
 import java.math.BigDecimal;
 import java.math.MathContext;

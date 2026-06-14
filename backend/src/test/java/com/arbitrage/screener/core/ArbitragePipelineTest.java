@@ -1,15 +1,14 @@
 package com.arbitrage.screener.core;
 
 import com.arbitrage.screener.config.FeeConfig;
-import com.arbitrage.screener.entity.OrderBook;
-import com.arbitrage.screener.entity.OrderBookLevel;
-import com.arbitrage.screener.entity.Ticker;
-import com.arbitrage.screener.entity.TickerCache;
+import com.arbitrage.screener.model.OrderBook;
+import com.arbitrage.screener.model.OrderBookLevel;
+import com.arbitrage.screener.model.Ticker;
+import com.arbitrage.screener.model.TickerCache;
 import com.arbitrage.screener.exchange.*;
 import com.arbitrage.screener.exchange.bingx.BingXAdapter;
 import com.arbitrage.screener.exchange.mexc.MexcAdapter;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -18,8 +17,6 @@ import org.junit.jupiter.api.Test;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
-import java.util.EnumMap;
-import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 

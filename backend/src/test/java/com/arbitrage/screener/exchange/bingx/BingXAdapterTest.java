@@ -1,10 +1,9 @@
 package com.arbitrage.screener.exchange.bingx;
 
-import com.arbitrage.screener.entity.OrderBook;
-import com.arbitrage.screener.entity.Ticker;
+import com.arbitrage.screener.model.OrderBook;
+import com.arbitrage.screener.model.Ticker;
 import com.arbitrage.screener.exchange.ExchangeEnum;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;

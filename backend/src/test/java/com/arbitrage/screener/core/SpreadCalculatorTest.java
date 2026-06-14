@@ -1,6 +1,6 @@
 package com.arbitrage.screener.core;
 
-import com.arbitrage.screener.entity.Ticker;
+import com.arbitrage.screener.model.Ticker;
 import com.arbitrage.screener.exchange.ExchangeEnum;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;

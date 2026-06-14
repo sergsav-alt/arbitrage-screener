@@ -1,11 +1,10 @@
 package com.arbitrage.screener.core;
 
-import com.arbitrage.screener.entity.OrderBook;
-import com.arbitrage.screener.entity.OrderBookLevel;
+import com.arbitrage.screener.model.OrderBook;
+import com.arbitrage.screener.model.OrderBookLevel;
 import com.arbitrage.screener.exchange.ExchangeEnum;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.util.List;
 import java.util.Optional;
 

@@ -1,7 +1,7 @@
 package com.arbitrage.screener.exchange.mexc;
 
-import com.arbitrage.screener.entity.OrderBook;
-import com.arbitrage.screener.entity.Ticker;
+import com.arbitrage.screener.model.OrderBook;
+import com.arbitrage.screener.model.Ticker;
 import com.arbitrage.screener.exchange.ExchangeEnum;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;

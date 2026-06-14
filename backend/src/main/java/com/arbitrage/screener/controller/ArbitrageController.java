@@ -2,7 +2,7 @@ package com.arbitrage.screener.controller;
 
 import com.arbitrage.screener.core.ArbitrageService;
 import com.arbitrage.screener.core.ExchangeManager;
-import com.arbitrage.screener.entity.ArbitrageOpportunity;
+import com.arbitrage.screener.model.ArbitrageOpportunity;
 import com.arbitrage.screener.exchange.ExchangeEnum;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;

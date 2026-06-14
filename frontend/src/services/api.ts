@@ -1,5 +1,12 @@
 import axios from 'axios';
-import { ArbitrageOpportunity, ExchangeStatus, OpportunityFilters } from '../types';
+import {
+  ArbitrageOpportunity,
+  ExchangeStatus,
+  OpportunityFilters,
+  AggregatedStatistics,
+  SymbolStats,
+  SpreadHistoryPoint,
+} from '../types';
 
 const API_BASE = '/api';
 
@@ -46,4 +53,37 @@ export function subscribeOpportunities(
   }
 
   return eventSource;
+}
+
+export async function getAggregatedStatistics(): Promise<AggregatedStatistics> {
+  const response = await axios.get<AggregatedStatistics>(`${API_BASE}/statistics`);
+  return response.data;
+}
+
+export async function getSymbolStatistics(
+  symbol: string,
+  from?: string,
+  to?: string
+): Promise<SymbolStats> {
+  const params = new URLSearchParams();
+  if (from) params.append('from', from);
+  if (to) params.append('to', to);
+  const response = await axios.get<SymbolStats>(
+    `${API_BASE}/statistics/${symbol}?${params.toString()}`
+  );
+  return response.data;
+}
+
+export async function getSymbolHistory(
+  symbol: string,
+  from?: string,
+  to?: string
+): Promise<SpreadHistoryPoint[]> {
+  const params = new URLSearchParams();
+  if (from) params.append('from', from);
+  if (to) params.append('to', to);
+  const response = await axios.get<SpreadHistoryPoint[]>(
+    `${API_BASE}/statistics/${symbol}/history?${params.toString()}`
+  );
+  return response.data;
 }

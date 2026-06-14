@@ -1,8 +1,8 @@
 package com.arbitrage.screener.core;
 
-import com.arbitrage.screener.entity.OrderBook;
-import com.arbitrage.screener.entity.Ticker;
-import com.arbitrage.screener.entity.TickerCache;
+import com.arbitrage.screener.model.OrderBook;
+import com.arbitrage.screener.model.Ticker;
+import com.arbitrage.screener.model.TickerCache;
 import com.arbitrage.screener.exchange.ExchangeAdapter;
 import com.arbitrage.screener.exchange.ExchangeAdapterFactory;
 import com.arbitrage.screener.exchange.ExchangeEnum;

@@ -1,4 +1,4 @@
-package com.arbitrage.screener.entity;
+package com.arbitrage.screener.model;
 
 public enum ArbitrageType {
     INTRA_EXCHANGE,

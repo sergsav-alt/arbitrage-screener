@@ -1,8 +1,8 @@
 package com.arbitrage.screener.exchange.bingx;
 
-import com.arbitrage.screener.entity.OrderBook;
-import com.arbitrage.screener.entity.OrderBookLevel;
-import com.arbitrage.screener.entity.Ticker;
+import com.arbitrage.screener.model.OrderBook;
+import com.arbitrage.screener.model.OrderBookLevel;
+import com.arbitrage.screener.model.Ticker;
 import com.arbitrage.screener.exchange.ExchangeAdapter;
 import com.arbitrage.screener.exchange.ExchangeEnum;
 import com.fasterxml.jackson.core.JsonProcessingException;

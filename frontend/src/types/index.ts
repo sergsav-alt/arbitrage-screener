@@ -25,3 +25,25 @@ export interface OpportunityFilters {
   sellExchange?: string;
   minSpread?: number;
 }
+
+export interface AggregatedStatistics {
+  averageSpread: number;
+  maxSpread: number;
+  opportunityCount: number;
+  topSymbols: SymbolStats[];
+}
+
+export interface SymbolStats {
+  symbol: string;
+  averageSpread: number;
+  maxSpread: number;
+  count: number;
+}
+
+export interface SpreadHistoryPoint {
+  recordedAt: string;
+  spreadPercent: number;
+  buyPrice: number;
+  sellPrice: number;
+  netProfit: number;
+}

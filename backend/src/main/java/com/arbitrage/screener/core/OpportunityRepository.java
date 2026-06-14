@@ -1,6 +1,6 @@
 package com.arbitrage.screener.core;
 
-import com.arbitrage.screener.entity.ArbitrageOpportunity;
+import com.arbitrage.screener.model.ArbitrageOpportunity;
 import com.arbitrage.screener.exchange.ExchangeEnum;
 
 import java.util.Collection;

@@ -1,23 +1,15 @@
 import React from 'react';
 import { Layout, Typography } from 'antd';
 import { ExchangeStatus } from './ExchangeStatus';
-import { Filters } from './Filters';
-import { OpportunityFilters } from '../types';
 
 const { Header, Sider, Content } = Layout;
 const { Title } = Typography;
 
 interface AppLayoutProps {
-  filters: OpportunityFilters;
-  onFiltersChange: (filters: OpportunityFilters) => void;
   children: React.ReactNode;
 }
 
-export const AppLayout: React.FC<AppLayoutProps> = ({
-  filters,
-  onFiltersChange,
-  children,
-}) => {
+export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   return (
     <Layout style={{ minHeight: '100vh' }}>
       <Header
@@ -38,10 +30,6 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
           style={{ background: '#fff', padding: '16px', overflow: 'auto' }}
         >
           <ExchangeStatus />
-          <Filters
-            filters={filters}
-            onChange={onFiltersChange}
-          />
         </Sider>
         <Content style={{ padding: '24px', background: '#f5f5f5' }}>
           {children}

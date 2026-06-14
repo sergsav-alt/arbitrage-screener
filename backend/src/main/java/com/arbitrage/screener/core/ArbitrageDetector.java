@@ -1,8 +1,8 @@
 package com.arbitrage.screener.core;
 
-import com.arbitrage.screener.entity.ArbitrageOpportunity;
-import com.arbitrage.screener.entity.ArbitrageType;
-import com.arbitrage.screener.entity.Ticker;
+import com.arbitrage.screener.model.ArbitrageOpportunity;
+import com.arbitrage.screener.model.ArbitrageType;
+import com.arbitrage.screener.model.Ticker;
 import com.arbitrage.screener.exchange.ExchangeEnum;
 import lombok.extern.slf4j.Slf4j;
 

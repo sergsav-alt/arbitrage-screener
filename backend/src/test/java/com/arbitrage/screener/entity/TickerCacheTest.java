@@ -1,6 +1,8 @@
 package com.arbitrage.screener.entity;
 
 import com.arbitrage.screener.exchange.ExchangeEnum;
+import com.arbitrage.screener.model.Ticker;
+import com.arbitrage.screener.model.TickerCache;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;

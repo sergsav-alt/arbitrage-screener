@@ -1,7 +1,7 @@
 package com.arbitrage.screener.exchange;
 
-import com.arbitrage.screener.entity.OrderBook;
-import com.arbitrage.screener.entity.Ticker;
+import com.arbitrage.screener.model.OrderBook;
+import com.arbitrage.screener.model.Ticker;
 
 import java.util.function.Consumer;
 

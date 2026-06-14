@@ -1,0 +1,5 @@
+databaseChangeLog:
+  - include:
+      file: classpath:db/changelog/001-create-spread-history.sql
+  - include:
+      file: classpath:db/changelog/002-create-arbitrage-event.sql

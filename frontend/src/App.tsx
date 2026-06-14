@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from 'react';
+import { Tabs } from 'antd';
 import { AppLayout } from './components/AppLayout';
 import { OpportunitiesTable } from './components/OpportunitiesTable';
+import { Filters } from './components/Filters';
+import { DashboardPage } from './components/DashboardPage';
 import { getOpportunities, subscribeOpportunities } from './services/api';
 import { ArbitrageOpportunity, OpportunityFilters } from './types';
 
@@ -36,12 +39,32 @@ const App: React.FC = () => {
     return true;
   });
 
+  const tabs = [
+    {
+      key: 'opportunities',
+      label: 'Возможности',
+      children: (
+        <div>
+          <Filters filters={filters} onChange={setFilters} />
+          <div style={{ marginTop: 16 }}>
+            <OpportunitiesTable
+              opportunities={filteredOpportunities}
+              loading={loading}
+            />
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'analytics',
+      label: 'Аналитика',
+      children: <DashboardPage />,
+    },
+  ];
+
   return (
-    <AppLayout filters={filters} onFiltersChange={setFilters}>
-      <OpportunitiesTable
-        opportunities={filteredOpportunities}
-        loading={loading}
-      />
+    <AppLayout>
+      <Tabs defaultActiveKey="opportunities" items={tabs} size="large" />
     </AppLayout>
   );
 };

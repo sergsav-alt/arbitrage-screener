@@ -1,6 +1,6 @@
 package com.arbitrage.screener.core;
 
-import com.arbitrage.screener.entity.OrderBook;
+import com.arbitrage.screener.model.OrderBook;
 import com.arbitrage.screener.exchange.ExchangeEnum;
 
 import java.time.Duration;
