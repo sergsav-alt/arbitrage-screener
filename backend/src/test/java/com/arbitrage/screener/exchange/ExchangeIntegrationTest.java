@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.List;
 
+import static com.arbitrage.screener.util.ObjectMapperHelper.objectMapper;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -18,7 +19,7 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class ExchangeIntegrationTest {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ObjectMapper MAPPER = objectMapper();
 
     private ExchangeAdapterFactory factory;
     private TickerCache cache;

@@ -22,6 +22,8 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
+import static com.arbitrage.screener.util.ObjectMapperHelper.objectMapper;
+
 /**
  * WebSocket-адаптер для биржи BingX (спотовый рынок).
  * Подключается к wss://open-api-ws.bingx.com/market,
@@ -30,7 +32,7 @@ import java.util.function.Consumer;
 @Slf4j
 public class BingXAdapter implements ExchangeAdapter {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ObjectMapper MAPPER = objectMapper();
 
     private static final int PING_INTERVAL_SECONDS = 180;
     private static final int MAX_RECONNECT_DELAY_SECONDS = 60;

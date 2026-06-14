@@ -22,6 +22,8 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
+import static com.arbitrage.screener.util.ObjectMapperHelper.objectMapper;
+
 /**
  * WebSocket-адаптер для биржи MEXC (спотовый рынок).
  * Подключается к wss://wbs-api.mexc.com/ws,
@@ -30,7 +32,7 @@ import java.util.function.Consumer;
 @Slf4j
 public class MexcAdapter implements ExchangeAdapter {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ObjectMapper MAPPER = objectMapper();
     private static final String BOOK_TICKER_CHANNEL = "spot@public.aggre.bookTicker.v3.api.pb@100ms@%s";
 
     private static final int PING_INTERVAL_SECONDS = 60;

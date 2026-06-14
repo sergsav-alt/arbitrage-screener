@@ -15,10 +15,10 @@
 
 | Слой | Технология |
 |------|-----------|
-| Бэкенд | Java 17, Spring Boot 4.1.0, Maven, Lombok, Jackson |
+| Бэкенд | Java 21, Spring Boot 4.1.0, Maven, Lombok, Jackson, jOOQ |
 | WS-клиенты | `java.net.http.WebSocket` (нативные, без сторонних библиотек) |
 | Фронтенд | React 19, TypeScript 4.9, Ant Design 6, Axios, react-scripts (CRA) |
-| БД | PostgreSQL (запланирована на Спринт 6, пока не подключена) |
+| БД | PostgreSQL + jOOQ + Liquibase (миграции) |
 
 ### Биржи
 
@@ -136,7 +136,7 @@ frontend/src/
 ## 4. Что предстоит (оставшиеся спринты)
 
 ### Спринт 6: Исторические данные, статистика и графики — **СЛЕДУЮЩИЙ**
-- PostgreSQL + Spring Data JPA
+- PostgreSQL + jOOQ
 - `StatisticsCollector`, эндпоинты `/api/statistics`
 - Recharts на фронтенде: дашборд и графики спреда
 

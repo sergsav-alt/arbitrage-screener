@@ -15,11 +15,12 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static com.arbitrage.screener.util.ObjectMapperHelper.objectMapper;
 import static org.junit.jupiter.api.Assertions.*;
 
 class MexcAdapterTest {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ObjectMapper MAPPER = objectMapper();
 
     private MexcAdapter adapter;
     private List<Ticker> capturedTickers;

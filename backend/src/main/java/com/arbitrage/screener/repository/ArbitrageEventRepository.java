@@ -1,13 +1,13 @@
 package com.arbitrage.screener.repository;
 
 import com.arbitrage.screener.entity.ArbitrageEvent;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
+import java.util.List;
 
-@Repository
-public interface ArbitrageEventRepository extends JpaRepository<ArbitrageEvent, Long> {
+public interface ArbitrageEventRepository {
+
+    void saveAll(List<ArbitrageEvent> events);
 
     void deleteByDetectedAtBefore(Instant threshold);
 }

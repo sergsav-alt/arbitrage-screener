@@ -18,6 +18,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 
+import static com.arbitrage.screener.util.ObjectMapperHelper.objectMapper;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -26,7 +27,7 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class ArbitragePipelineTest {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ObjectMapper MAPPER = objectMapper();
 
     private TickerCache cache;
     private OrderBookCache orderBookCache;
