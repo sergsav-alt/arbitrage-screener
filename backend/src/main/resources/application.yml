@@ -9,6 +9,7 @@ spring:
   jooq:
     sql-dialect: POSTGRES
   liquibase:
+    enable: true
     change-log: classpath:db/changelog/db.changelog-master.yaml
 
 server:

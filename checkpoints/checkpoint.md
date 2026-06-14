@@ -1,7 +1,7 @@
 # Чекпоинт: Арбитражный скринер криптовалютных бирж
 
-**Дата:** 2026-06-13
-**Статус:** Спринты 1–5 завершены. Готовность к Спринту 6 (исторические данные, статистика и графики).
+**Дата:** 2026-06-14
+**Статус:** Спринты 1–5 завершены. Спринт 6 в процессе — созданы Liquibase-миграции с начальными данными.
 
 ---
 
@@ -135,17 +135,51 @@ frontend/src/
 
 ## 4. Что предстоит (оставшиеся спринты)
 
-### Спринт 6: Исторические данные, статистика и графики — **СЛЕДУЮЩИЙ**
-- PostgreSQL + jOOQ
-- `StatisticsCollector`, эндпоинты `/api/statistics`
-- Recharts на фронтенде: дашборд и графики спреда
+### Спринт 6: Исторические данные, статистика и графики — **В ПРОЦЕССЕ**
+- ✅ PostgreSQL + jOOQ + Liquibase миграции (001, 002, 003)
+- ✅ Начальные данные (seed) для spread_history и arbitrage_event
+- ⬜ `StatisticsCollector`, эндпоинты `/api/statistics`
+- ⬜ Recharts на фронтенде: дашборд и графики спреда
+- ⬜ Реализовать репозитории jOOQ (ArbitrageEventRepositoryImpl, SpreadHistoryRepositoryImpl)
 
 ### Спринт 7: Продвинутые функции и контейнеризация
 - Triangular arbitrage, уведомления, экспорт CSV/JSON, Docker
 
 ---
 
-## 5. Тесты
+## 5. Liquibase-миграции и seed-данные (Добавлено 2026-06-14)
+
+### Файлы в `backend/src/main/resources/db/changelog/`
+
+| Файл | Описание |
+|------|----------|
+| `db.changelog-master.yaml` | Включает 001, 002, 003 (последовательно) |
+| `001-create-spread-history.sql` | Таблица `spread_history` (история спредов: symbol, buy/sell exchange, цены, spread%, netProfit, maxVolume, recorded_at) |
+| `002-create-arbitrage-event.sql` | Таблица `arbitrage_event` (арбитражные события: type (OPEN/CLOSED/MISSED/REJECTED), те же поля + slippage, detected_at) |
+| `003-insert-initial-data.sql` | 19 записей в spread_history + 10 записей в arbitrage_event с реалистичными данными |
+
+### Начальные данные
+
+**spread_history** — 19 записей по парам BTC/USDT, ETH/USDT, SOL/USDT, XRP/USDT, DOGE/USDT, LTC/USDT на биржах Binance, Bybit, OKX с `recorded_at` от 10:15 до 14:45.
+
+**arbitrage_event** — 10 записей:
+- `CLOSED`: 3 завершённые сделки (с slippage > 0)
+- `OPEN`: 4 активные возможности (slippage = 0)
+- `MISSED`: 2 пропущенные
+- `REJECTED`: 1 отклонённая
+
+### Деталь, которую важно помнить
+
+При создании 003-файла сначала забыли указать `recorded_at` в INSERT для `spread_history`. Несмотря на `DEFAULT NOW()` в схеме, это вызывало ошибку not-null constraint. **Исправлено** — `recorded_at` добавлен явно с таймстемпами, равномерно распределёнными по дню.
+
+### Репозитории jOOQ (уже созданы но не реализованы)
+
+- `ArbitrageEventRepositoryImpl.java` — заглушка
+- `SpreadHistoryRepositoryImpl.java` — заглушка
+
+---
+
+## 6. Тесты
 
 **Всего: 100+ тестов, 0 failures.** Запуск: `cd backend && mvn test`
 
@@ -169,7 +203,7 @@ frontend/src/
 
 ---
 
-## 6. Конфигурация (application.yml)
+## 7. Конфигурация (application.yml)
 
 ```yaml
 symbols: BTCUSDT, ETHUSDT, SOLUSDT, BNBUSDT, XRPUSDT, ADAUSDT, DOGEUSDT
@@ -190,22 +224,27 @@ reconnect: initial-delay: 1s, max-delay: 60s, ping-interval: 180s
 
 ---
 
-## 7. Ключевые файлы для быстрого входа
+## 8. Ключевые файлы для быстрого входа
 
 | Файл | Зачем читать |
 |------|-------------|
 | `docs/technical-specification.md` | Полное ТЗ |
 | `docs/sprints.md` | План всех 7 спринтов |
 | `backend/src/main/resources/application.yml` | Текущая конфигурация (включая fees) |
+| `backend/src/main/resources/db/changelog/` | Liquibase-миграции и seed-данные |
 | `backend/src/main/java/.../config/CoreConfig.java` | Все Spring-бины |
 | `backend/src/main/java/.../core/ArbitrageDetector.java` | Ядро расчёта с fees/liquidity/slippage |
 | `backend/src/main/java/.../config/FeeConfig.java` | Конфигурация комиссий |
 | `backend/src/main/java/.../exchange/ExchangeAdapter.java` | Интерфейс адаптера биржи |
+| `backend/src/main/java/.../entity/ArbitrageEvent.java` | JPA entity для arbitrage_event |
+| `backend/src/main/java/.../entity/SpreadHistory.java` | JPA entity для spread_history |
 
 ---
 
-## 8. Известные TODO / Технический долг
+## 9. Известные TODO / Технический долг
 
+- **Реализовать jOOQ репозитории** — `ArbitrageEventRepositoryImpl` и `SpreadHistoryRepositoryImpl` созданы как заглушки, нужно наполнить jOOQ-запросами.
 - **Дублирование URL бирж** — `ExchangeEnum.getWsUrl()` и `application.yml` дублируют URL.
 - **OrderBook depth** — используется bookTicker (1 уровень стакана), полноценный depth20 не реализован.
 - **Только кроссбиржевой арбитраж** — `ArbitrageType.INTRA_EXCHANGE` определён, но не реализован (Спринт 7).
+- **`JooqTables.java`** — сгенерирован, но не используется. Возможно, конфигурация jOOQ codegen требует доработки.
