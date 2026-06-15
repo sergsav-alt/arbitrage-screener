@@ -1,4 +1,4 @@
-package com.arbitrage.screener.controller;
+package com.arbitrage.screener.model;
 
 public record AggregatedStatistics(
         double averageSpread,

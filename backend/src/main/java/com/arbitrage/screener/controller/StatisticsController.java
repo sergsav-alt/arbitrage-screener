@@ -1,6 +1,9 @@
 package com.arbitrage.screener.controller;
 
 import com.arbitrage.screener.entity.SpreadHistory;
+import com.arbitrage.screener.model.AggregatedStatistics;
+import com.arbitrage.screener.model.SpreadHistoryPoint;
+import com.arbitrage.screener.model.SymbolStats;
 import com.arbitrage.screener.repository.SpreadHistoryRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;

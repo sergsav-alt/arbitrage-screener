@@ -18,12 +18,12 @@ server:
 exchanges:
   bingx:
     enabled: true
-    ws-url: wss://open-api-ws.bingx.com/market
+    ws-url: wss://open-api-cswap-ws.bingx.com/market
   mexc:
     enabled: true
-    ws-url: wss://wbs-api.mexc.com/ws
+    ws-url: wss://contract.mexc.com/edge
 
-symbols: BTCUSDT,ETHUSDT,SOLUSDT,BNBUSDT,XRPUSDT,ADAUSDT,DOGEUSDT
+symbols: BTCUSDT
 
 arbitrage:
   min-spread-percent: 0.1

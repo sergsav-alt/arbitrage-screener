@@ -1,4 +1,4 @@
-package com.arbitrage.screener.controller;
+package com.arbitrage.screener.model;
 
 import java.math.BigDecimal;
 import java.time.Instant;
