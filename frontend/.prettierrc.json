@@ -1,0 +1,8 @@
+{
+  "_comment1": "npm i --save-dev --save-exact prettier",
+  "_comment2": "npx prettier . --write",
+  "printWidth": 120,
+  "semi": false,
+  "singleQuote": true,
+  "trailingComma": "all"
+}

@@ -1,10 +1,11 @@
 package com.arbitrage.screener.exchange.mexc;
 
-import com.arbitrage.screener.model.OrderBook;
-import com.arbitrage.screener.model.OrderBookLevel;
-import com.arbitrage.screener.model.Ticker;
 import com.arbitrage.screener.exchange.ExchangeAdapter;
 import com.arbitrage.screener.exchange.ExchangeEnum;
+import com.arbitrage.screener.exchange.ExchangeWebSocketClient;
+import com.arbitrage.screener.model.BookTicker;
+import com.arbitrage.screener.model.Deal;
+import com.arbitrage.screener.model.OrderBook;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -12,115 +13,115 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.math.BigDecimal;
 import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.WebSocket;
-import java.time.Duration;
-import java.time.Instant;
-import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
+import static ch.qos.logback.core.util.StringUtil.isNullOrEmpty;
+import static com.arbitrage.screener.util.FormatHelper.buildAndBroadcastOrderBook;
+import static com.arbitrage.screener.util.FormatHelper.formatSymbol;
 import static com.arbitrage.screener.util.ObjectMapperHelper.objectMapper;
 
 /**
- * WebSocket-адаптер для биржи MEXC (спотовый рынок).
- * Подключается к wss://wbs-api.mexc.com/ws,
- * подписывается на bookTicker-потоки и нормализует в {@link Ticker}.
+ * WebSocket-адаптер для биржи MEXC (фьючерсный рынок).
+ * Подключается к wss://contract.mexc.com/edge,
+ * подписывается на push.deal (сделки) и push.depth (стакан ордеров),
+ * нормализует в {@link Deal} и {@link OrderBook}.
+ * Клиент отправляет ping каждые 60 секунд ({@code {"method":"ping"}}).
  */
 @Slf4j
 public class MexcAdapter implements ExchangeAdapter {
 
     private static final ObjectMapper MAPPER = objectMapper();
-    private static final String BOOK_TICKER_CHANNEL = "spot@public.aggre.bookTicker.v3.api.pb@100ms@%s";
 
     private static final int PING_INTERVAL_SECONDS = 60;
     private static final int MAX_RECONNECT_DELAY_SECONDS = 60;
     private static final int INITIAL_RECONNECT_DELAY_SECONDS = 1;
-    private static final int CONNECTION_TIMEOUT_SECONDS = 10;
 
-    private final HttpClient httpClient;
     private final ScheduledExecutorService scheduler;
     private final ExchangeEnum exchange;
-    private final List<Consumer<Ticker>> tickerHandlers;
+    private final List<Consumer<Deal>> dealHandlers;
     private final List<Consumer<OrderBook>> orderBookHandlers;
+    private final List<Consumer<BookTicker>> bookTickerHandlers;
     private final AtomicInteger reconnectAttempt;
 
-    private volatile WebSocket webSocket;
-    private volatile boolean connected;
+    private volatile ExchangeWebSocketClient webSocketClient;
+    private volatile boolean connected = false;
     private volatile ScheduledFuture<?> pingTask;
-    private String[] subscribedSymbols;
+    private volatile String subscribedSymbol;
 
     public MexcAdapter() {
-        this.httpClient = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(CONNECTION_TIMEOUT_SECONDS))
-                .build();
         this.scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
             var thread = new Thread(r, "mexc-ws");
             thread.setDaemon(true);
             return thread;
         });
         this.exchange = ExchangeEnum.MEXC;
-        this.tickerHandlers = new CopyOnWriteArrayList<>();
+        this.dealHandlers = new CopyOnWriteArrayList<>();
         this.orderBookHandlers = new CopyOnWriteArrayList<>();
+        this.bookTickerHandlers = new CopyOnWriteArrayList<>();
         this.reconnectAttempt = new AtomicInteger(0);
     }
 
     @Override
     public void connect() {
-        if (connected) {
-            log.debug("Already connected to MEXC");
-            return;
+        if (!connected) {
+            doConnect();
         }
-        log.info("Connecting to MEXC WebSocket...");
-        doConnect();
     }
 
     private void doConnect() {
         var targetUri = URI.create(exchange.getWsUrl());
-        httpClient.newWebSocketBuilder()
-                .connectTimeout(Duration.ofSeconds(CONNECTION_TIMEOUT_SECONDS))
-                .buildAsync(targetUri, new MexcWebSocketListener())
-                .thenAccept(this::onConnected)
-                .exceptionally(this::onConnectionError);
+        this.webSocketClient = new ExchangeWebSocketClient(
+                targetUri,
+                "MEXC",
+                this::onConnected,
+                this::handleMessage,
+                this::handleClose,
+                () -> {
+                    connected = false;
+                    stopPing();
+                    scheduleReconnect();
+                }
+        );
+        try {
+            this.webSocketClient.connect();
+            this.connected = true;
+        } catch (Exception e) {
+            log.error("MEXC: failed to connect: {}", e.getMessage());
+            scheduleReconnect();
+        }
     }
 
-    private void onConnected(WebSocket ws) {
-        this.webSocket = ws;
+    private void onConnected() {
         this.connected = true;
         this.reconnectAttempt.set(0);
-        log.info("Connected to MEXC WebSocket");
+        log.info("MEXC: connected to ws");
         startPing();
-        subscribeAll();
-    }
-
-    private Void onConnectionError(Throwable error) {
-        log.error("Failed to connect to MEXC: {}", error.getMessage());
-        scheduleReconnect();
-        return null;
+        subscribe();
     }
 
     @Override
     public void disconnect() {
-        log.info("Disconnecting from MEXC WebSocket");
+        log.info("MEXC: disconnecting from ws");
         connected = false;
         stopPing();
-        if (webSocket != null && !webSocket.isOutputClosed()) {
-            webSocket.sendClose(WebSocket.NORMAL_CLOSURE, "Client disconnecting");
+        if (webSocketClient != null && webSocketClient.isOpen()) {
+            unsubscribe();
+            webSocketClient.close();
         }
     }
 
     @Override
-    public void subscribe(String... symbols) {
-        if (symbols.length == 0) {
+    public void subscribe(String symbol) {
+        if (isNullOrEmpty(symbol)) {
             log.warn("No symbols provided for subscription");
             return;
         }
-        this.subscribedSymbols = symbols;
-        log.info("Queued subscription for {} symbols: {}", symbols.length, String.join(",", symbols));
+        this.subscribedSymbol = symbol;
         if (connected) {
-            subscribeAll();
+            subscribe();
         }
     }
 
@@ -135,8 +136,13 @@ public class MexcAdapter implements ExchangeAdapter {
     }
 
     @Override
-    public void onTicker(Consumer<Ticker> handler) {
-        tickerHandlers.add(handler);
+    public void onDeal(Consumer<Deal> handler) {
+        dealHandlers.add(handler);
+    }
+
+    @Override
+    public void onBookTicker(Consumer<BookTicker> handler) {
+        bookTickerHandlers.add(handler);
     }
 
     @Override
@@ -146,38 +152,64 @@ public class MexcAdapter implements ExchangeAdapter {
 
     @Override
     public void clearHandlers() {
-        tickerHandlers.clear();
+        dealHandlers.clear();
         orderBookHandlers.clear();
+        bookTickerHandlers.clear();
     }
 
     // --- Subscription ---
 
-    private void subscribeAll() {
-        if (subscribedSymbols == null || subscribedSymbols.length == 0) return;
-        var ws = this.webSocket;
-        if (ws == null || !connected) return;
+    private void subscribe() {
+        var client = this.webSocketClient;
+        if (client == null || !connected) return;
 
-        var channels = Arrays.stream(subscribedSymbols)
-                .map(s -> String.format(BOOK_TICKER_CHANNEL, s.toUpperCase()))
-                .toArray(String[]::new);
+        var formattedSymbol = formatSymbol(subscribedSymbol, exchange);
 
-        var msg = buildSubscriptionMessage(channels);
-        log.debug("Subscribing to MEXC channels: {}", String.join(",", channels));
-        ws.sendText(msg, true);
+        var dealMsg = buildSubscriptionMessage("sub.deal", formattedSymbol);
+        client.send(dealMsg);
+
+        var depthMsg = buildSubscriptionMessage("sub.depth", formattedSymbol);
+        client.send(depthMsg);
+
+        var tickerMsg = buildSubscriptionMessage("sub.ticker", formattedSymbol);
+        client.send(tickerMsg);
     }
 
-    private String buildSubscriptionMessage(String[] channels) {
+    private void unsubscribe() {
+        var client = this.webSocketClient;
+        if (client == null || !client.isOpen()) return;
+
+        var formattedSymbol = formatSymbol(subscribedSymbol, exchange);
+
+        var dealMsg = buildUnsubscriptionMessage("unsub.deal", formattedSymbol);
+        client.send(dealMsg);
+
+        var depthMsg = buildUnsubscriptionMessage("unsub.depth", formattedSymbol);
+        client.send(depthMsg);
+
+        var tickerMsg = buildUnsubscriptionMessage("unsub.ticker", formattedSymbol);
+        client.send(tickerMsg);
+    }
+
+    private String buildSubscriptionMessage(String method, String symbol) {
         try {
-            var paramsNode = MAPPER.createArrayNode();
-            for (var channel : channels) {
-                paramsNode.add(channel);
-            }
             var node = MAPPER.createObjectNode()
-                    .put("method", "SUBSCRIPTION")
-                    .set("params", paramsNode);
+                    .put("method", method)
+                    .set("param", MAPPER.createObjectNode().put("symbol", symbol));
             return MAPPER.writeValueAsString(node);
         } catch (JsonProcessingException e) {
-            throw new RuntimeException("Failed to build subscription message", e);
+            throw new RuntimeException("MEXC: failed to build subscription message", e);
+        }
+    }
+
+    private String buildUnsubscriptionMessage(String method, String symbol) {
+        try {
+            var node = MAPPER.createObjectNode()
+                    .put("method", method)
+                    .set("param", MAPPER.createObjectNode().put("symbol", symbol));
+            return MAPPER.writeValueAsString(node);
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException("MEXC: failed to build unsubscription message", e);
         }
     }
 
@@ -200,13 +232,13 @@ public class MexcAdapter implements ExchangeAdapter {
     }
 
     private void sendPing() {
-        var ws = this.webSocket;
-        if (ws != null && connected) {
+        var client = this.webSocketClient;
+        if (client != null && connected) {
             try {
                 var pingMsg = MAPPER.writeValueAsString(
-                        MAPPER.createObjectNode().put("method", "PING")
+                        MAPPER.createObjectNode().put("method", "ping")
                 );
-                ws.sendText(pingMsg, true);
+                client.send(pingMsg);
             } catch (JsonProcessingException e) {
                 log.error("Failed to build ping message", e);
             }
@@ -222,105 +254,85 @@ public class MexcAdapter implements ExchangeAdapter {
                 INITIAL_RECONNECT_DELAY_SECONDS * (long) Math.pow(2, attempt - 1),
                 MAX_RECONNECT_DELAY_SECONDS
         );
-        log.info("Scheduling MEXC reconnect attempt {} in {} seconds", attempt, delay);
+        log.info("MEXC: reconnect attempt {} in {} seconds", attempt, delay);
         scheduler.schedule(this::doConnect, delay, TimeUnit.SECONDS);
     }
 
     // --- Message Handling ---
 
-    public void handleMessage(String text) {
+    private void handleMessage(String text) {
         try {
             var root = MAPPER.readTree(text);
 
-            if (root.has("msg") && root.has("code")) {
-                log.debug("Received MEXC subscription ack: code={}", root.get("code").asInt());
+            if (root.has("channel") && "pong".equals(root.get("channel").asText())) {
+                log.debug("MEXC: pong received");
                 return;
             }
 
-            if (root.has("channel") && root.has("publicbookticker")) {
+            if (root.has("code") && !root.has("channel")) {
+                log.debug("MEXC: received ack: code={}", root.get("code").asInt());
+                return;
+            }
+
+            var channel = root.path("channel").asText();
+            if ("push.deal".equals(channel)) {
+                parseDeal(root);
+            } else if ("push.depth".equals(channel)) {
+                parseDepth(root);
+            } else if ("push.ticker".equals(channel)) {
                 parseBookTicker(root);
             } else {
-                log.debug("Skipping unrecognized MEXC message");
+                log.debug("MEXC: skipping unrecognized message: {}", text);
             }
         } catch (JsonProcessingException e) {
-            log.error("Failed to parse MEXC WebSocket message: {}", e.getMessage());
+            log.error("MEXC: failed to parse ws message: {}", e.getMessage());
         }
     }
 
-    void parseBookTicker(JsonNode root) {
-        var symbol = root.get("symbol").asText();
-        var tickerData = root.get("publicbookticker");
+    private void parseDeal(JsonNode root) {
+        var symbol = formSymbol(root);
+        var timestamp = root.get("ts").asLong();
+        var data = root.get("data");
 
-        var bidPrice = new BigDecimal(tickerData.get("bidprice").asText());
-        var bidQty = new BigDecimal(tickerData.get("bidquantity").asText());
-        var askPrice = new BigDecimal(tickerData.get("askprice").asText());
-        var askQty = new BigDecimal(tickerData.get("askquantity").asText());
+        var price = new BigDecimal(data.get(0).get("p").asText());
+        var quantity = new BigDecimal(data.get(0).get("v").asText());
 
-        var ticker = new Ticker(exchange, symbol, bidPrice, bidQty, askPrice, askQty, Instant.now());
-        tickerHandlers.forEach(h -> h.accept(ticker));
-
-        var bids = List.of(new OrderBookLevel(bidPrice, bidQty));
-        var asks = List.of(new OrderBookLevel(askPrice, askQty));
-        var orderBook = new OrderBook(exchange, symbol, bids, asks, Instant.now());
-        orderBookHandlers.forEach(h -> h.accept(orderBook));
+        var deal = new Deal(exchange, symbol, price, quantity, timestamp);
+        dealHandlers.forEach(h -> h.accept(deal));
     }
 
-    public void handleClose(int statusCode, String reason) {
-        log.warn("MEXC WebSocket closed: code={}, reason={}", statusCode, reason);
+    private void parseBookTicker(JsonNode root) {
+        var data = root.get("data");
+
+        var askPrice = new BigDecimal(data.get("minAskPrice").asText());
+        var bidPrice = new BigDecimal(data.get("maxBidPrice").asText());
+        var timestamp = Long.valueOf(data.get("timestamp").asLong());
+
+        var bookTicker = new BookTicker(exchange, formSymbol(root), askPrice, BigDecimal.valueOf(0), bidPrice, BigDecimal.valueOf(0), timestamp);
+        bookTickerHandlers.forEach(h -> h.accept(bookTicker));
+    }
+
+    private void parseDepth(JsonNode root) {
+        var symbol = formSymbol(root);
+        var data = root.get("data");
+        if (data == null || !data.has("bids") || !data.has("asks")) {
+            log.debug("MEXC: depth message without bids/asks for symbol={}, skipping", symbol);
+            return;
+        }
+        var timestamp = root.has("ts") ? root.get("ts").asLong() : 0L;
+        buildAndBroadcastOrderBook(exchange, formSymbol(root), data.get("bids"), data.get("asks"), timestamp, orderBookHandlers);
+    }
+
+    private String formSymbol(JsonNode root) {
+        return root.get("symbol").asText().replace("_", "");
+    }
+
+    private void handleClose(int statusCode, String reason) {
+        log.warn("MEXC: ws closed: code={}, reason={}", statusCode, reason);
         connected = false;
         stopPing();
-        if (statusCode != WebSocket.NORMAL_CLOSURE && statusCode != 1000) {
+        if (statusCode != org.java_websocket.framing.CloseFrame.NORMAL) {
             scheduleReconnect();
-        }
-    }
-
-    public void handleError(Throwable error) {
-        log.error("MEXC WebSocket error: {}", error.getMessage());
-        connected = false;
-        stopPing();
-        scheduleReconnect();
-    }
-
-    // --- WebSocket Listener ---
-
-    private class MexcWebSocketListener implements WebSocket.Listener {
-
-        private final StringBuilder buffer = new StringBuilder();
-
-        @Override
-        public void onOpen(WebSocket webSocket) {
-            WebSocket.Listener.super.onOpen(webSocket);
-            log.info("MEXC WebSocket connection opened");
-        }
-
-        @Override
-        public CompletionStage<?> onText(WebSocket webSocket, CharSequence data, boolean last) {
-            buffer.append(data);
-            if (last) {
-                var message = buffer.toString();
-                buffer.setLength(0);
-                handleMessage(message);
-            }
-            return WebSocket.Listener.super.onText(webSocket, data, last);
-        }
-
-        @Override
-        public CompletionStage<?> onClose(WebSocket webSocket, int statusCode, String reason) {
-            buffer.setLength(0);
-            handleClose(statusCode, reason);
-            return WebSocket.Listener.super.onClose(webSocket, statusCode, reason);
-        }
-
-        @Override
-        public void onError(WebSocket webSocket, Throwable error) {
-            handleError(error);
-            WebSocket.Listener.super.onError(webSocket, error);
-        }
-
-        @Override
-        public CompletionStage<?> onPong(WebSocket webSocket, java.nio.ByteBuffer message) {
-            log.debug("Pong received from MEXC");
-            return WebSocket.Listener.super.onPong(webSocket, message);
         }
     }
 }

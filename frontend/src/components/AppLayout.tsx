@@ -1,12 +1,12 @@
-import React from 'react';
-import { Layout, Typography } from 'antd';
-import { ExchangeStatus } from './ExchangeStatus';
+import React from 'react'
+import { Layout, Typography } from 'antd'
+import { ExchangeStatus } from './ExchangeStatus'
 
-const { Header, Sider, Content } = Layout;
-const { Title } = Typography;
+const { Header, Sider, Content } = Layout
+const { Title } = Typography
 
 interface AppLayoutProps {
-  children: React.ReactNode;
+  children: React.ReactNode
 }
 
 export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
@@ -25,16 +25,11 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
         </Title>
       </Header>
       <Layout>
-        <Sider
-          width={280}
-          style={{ background: '#fff', padding: '16px', overflow: 'auto' }}
-        >
+        <Sider width={280} style={{ background: '#fff', padding: '16px', overflow: 'auto' }}>
           <ExchangeStatus />
         </Sider>
-        <Content style={{ padding: '24px', background: '#f5f5f5' }}>
-          {children}
-        </Content>
+        <Content style={{ padding: '24px', background: '#f5f5f5' }}>{children}</Content>
       </Layout>
     </Layout>
-  );
-};
+  )
+}

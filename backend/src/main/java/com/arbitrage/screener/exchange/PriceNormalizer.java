@@ -1,60 +1,53 @@
 package com.arbitrage.screener.exchange;
 
-import com.arbitrage.screener.model.Ticker;
-import com.arbitrage.screener.model.TickerCache;
+import com.arbitrage.screener.model.Deal;
+import com.arbitrage.screener.cache.DealCache;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Component;
 
 import java.util.*;
 
+import static com.arbitrage.screener.util.FormatHelper.normalizeSymbol;
+
 /**
- * Нормализатор цен: приводит тикеры от разных бирж к единому формату
+ * Нормализатор цен: приводит сдедки от разных бирж к единому формату
  * и предоставляет сгруппированное представление для кроссбиржевого сравнения.
  */
+@Component
+@RequiredArgsConstructor
 public class PriceNormalizer {
 
-    private final TickerCache tickerCache;
-
-    public PriceNormalizer(TickerCache tickerCache) {
-        this.tickerCache = tickerCache;
-    }
+    private final DealCache dealCache;
 
     /**
-     * Группирует тикеры по нормализованному символу.
-     * Ключ — символ в формате BTCUSDT, значение — тикеры с разных бирж.
+     * Группирует сделки по нормализованному символу.
+     * Ключ — символ в формате BTCUSDT, значение — сделки с разных бирж.
      */
-    public Map<String, Map<ExchangeEnum, Ticker>> groupBySymbol() {
-        var grouped = new TreeMap<String, Map<ExchangeEnum, Ticker>>();
+    public Map<String, Map<ExchangeEnum, Deal>> groupBySymbol() {
+        var grouped = new TreeMap<String, Map<ExchangeEnum, Deal>>();
 
-        for (var ticker : tickerCache.getAll()) {
-            var symbol = normalizeSymbol(ticker.symbol());
+        for (var deal : dealCache.getAll()) {
+            var symbol = normalizeSymbol(deal.symbol());
             grouped
                     .computeIfAbsent(symbol, k -> new EnumMap<>(ExchangeEnum.class))
-                    .put(ticker.exchange(), ticker);
+                    .put(deal.exchange(), deal);
         }
 
         return Collections.unmodifiableMap(grouped);
     }
 
     /**
-     * Возвращает тикеры для заданного символа со всех бирж.
+     * Возвращает сделки для заданного символа со всех бирж.
      */
-    public Map<ExchangeEnum, Ticker> getTickersForSymbol(String symbol) {
+    public Map<ExchangeEnum, Deal> getDealsForSymbol(String symbol) {
         var normalizedSymbol = normalizeSymbol(symbol);
-        var result = new EnumMap<ExchangeEnum, Ticker>(ExchangeEnum.class);
+        var result = new EnumMap<ExchangeEnum, Deal>(ExchangeEnum.class);
 
-        for (var ticker : tickerCache.getAll()) {
-            if (normalizeSymbol(ticker.symbol()).equals(normalizedSymbol)) {
-                result.put(ticker.exchange(), ticker);
+        for (var deal : dealCache.getAll()) {
+            if (normalizeSymbol(deal.symbol()).equals(normalizedSymbol)) {
+                result.put(deal.exchange(), deal);
             }
         }
-
         return result;
-    }
-
-    /**
-     * Нормализует символ: удаляет дефисы, приводит к верхнему регистру.
-     * BTC-USDT → BTCUSDT
-     */
-    private String normalizeSymbol(String symbol) {
-        return symbol.replace("-", "").toUpperCase();
     }
 }

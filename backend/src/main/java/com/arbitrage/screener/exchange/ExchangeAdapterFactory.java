@@ -1,7 +1,9 @@
 package com.arbitrage.screener.exchange;
 
+import com.arbitrage.screener.exchange.binance.BinanceAdapter;
 import com.arbitrage.screener.exchange.bingx.BingXAdapter;
 import com.arbitrage.screener.exchange.mexc.MexcAdapter;
+import org.springframework.stereotype.Component;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -10,6 +12,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * Фабрика для создания и кэширования адаптеров бирж.
  * Каждый адаптер создаётся один раз и переиспользуется.
  */
+@Component
 public class ExchangeAdapterFactory {
 
     private final Map<ExchangeEnum, ExchangeAdapter> adapters = new ConcurrentHashMap<>();
@@ -26,6 +29,7 @@ public class ExchangeAdapterFactory {
         return switch (exchange) {
             case BINGX -> new BingXAdapter();
             case MEXC -> new MexcAdapter();
+            case BINANCE -> new BinanceAdapter();
         };
     }
 

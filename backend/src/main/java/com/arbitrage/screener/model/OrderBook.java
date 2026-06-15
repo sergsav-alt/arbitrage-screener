@@ -2,7 +2,6 @@ package com.arbitrage.screener.model;
 
 import com.arbitrage.screener.exchange.ExchangeEnum;
 
-import java.time.Instant;
 import java.util.List;
 
 public record OrderBook(
@@ -10,5 +9,5 @@ public record OrderBook(
         String symbol,
         List<OrderBookLevel> bids,
         List<OrderBookLevel> asks,
-        Instant timestamp
+        Long timestamp
 ) {}

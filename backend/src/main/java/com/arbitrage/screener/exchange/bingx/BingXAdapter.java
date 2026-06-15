@@ -1,10 +1,11 @@
 package com.arbitrage.screener.exchange.bingx;
 
-import com.arbitrage.screener.model.OrderBook;
-import com.arbitrage.screener.model.OrderBookLevel;
-import com.arbitrage.screener.model.Ticker;
 import com.arbitrage.screener.exchange.ExchangeAdapter;
 import com.arbitrage.screener.exchange.ExchangeEnum;
+import com.arbitrage.screener.exchange.ExchangeWebSocketClient;
+import com.arbitrage.screener.model.BookTicker;
+import com.arbitrage.screener.model.Deal;
+import com.arbitrage.screener.model.OrderBook;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -12,115 +13,111 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.math.BigDecimal;
 import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.WebSocket;
-import java.time.Duration;
-import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
+import static ch.qos.logback.core.util.StringUtil.isNullOrEmpty;
+import static com.arbitrage.screener.util.FormatHelper.*;
 import static com.arbitrage.screener.util.ObjectMapperHelper.objectMapper;
+import static com.arbitrage.screener.util.ObjectMapperHelper.writeValueAsString;
 
 /**
- * WebSocket-адаптер для биржи BingX (спотовый рынок).
- * Подключается к wss://open-api-ws.bingx.com/market,
- * подписывается на bookTicker-потоки и нормализует в {@link Ticker}.
+ * WebSocket-адаптер для биржи BingX (деривативы, swap).
+ * Подключается к wss://open-api-swap.bingx.com/swap-market,
+ * подписывается на Deal (сделки), depth50@200ms (стакан ордеров) и bookTicker (лучший бид/аск),
+ * нормализует в {@link Deal}, {@link OrderBook} и {@link BookTicker}.
+ * Сервер шлет Ping каждые 5 секунд (gzip), клиент отвечает Pong (обрабатывается в {@link ExchangeWebSocketClient}).
  */
 @Slf4j
 public class BingXAdapter implements ExchangeAdapter {
 
     private static final ObjectMapper MAPPER = objectMapper();
 
-    private static final int PING_INTERVAL_SECONDS = 180;
     private static final int MAX_RECONNECT_DELAY_SECONDS = 60;
     private static final int INITIAL_RECONNECT_DELAY_SECONDS = 1;
-    private static final int CONNECTION_TIMEOUT_SECONDS = 10;
 
-    private final HttpClient httpClient;
     private final ScheduledExecutorService scheduler;
     private final ExchangeEnum exchange;
-    private final List<Consumer<Ticker>> tickerHandlers;
+    private final List<Consumer<Deal>> dealHandlers;
     private final List<Consumer<OrderBook>> orderBookHandlers;
+    private final List<Consumer<BookTicker>> bookTickerHandlers;
     private final AtomicInteger reconnectAttempt;
 
-    private volatile WebSocket webSocket;
-    private volatile boolean connected;
-    private volatile ScheduledFuture<?> pingTask;
-    private String[] subscribedSymbols;
+    private volatile ExchangeWebSocketClient webSocketClient;
+    private volatile boolean connected = false;
+    private volatile String subscribedSymbol;
 
     public BingXAdapter() {
-        this.httpClient = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(CONNECTION_TIMEOUT_SECONDS))
-                .build();
         this.scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
             var thread = new Thread(r, "bingx-ws");
             thread.setDaemon(true);
             return thread;
         });
         this.exchange = ExchangeEnum.BINGX;
-        this.tickerHandlers = new CopyOnWriteArrayList<>();
+        this.dealHandlers = new CopyOnWriteArrayList<>();
         this.orderBookHandlers = new CopyOnWriteArrayList<>();
+        this.bookTickerHandlers = new CopyOnWriteArrayList<>();
         this.reconnectAttempt = new AtomicInteger(0);
     }
 
     @Override
     public void connect() {
-        if (connected) {
-            log.debug("Already connected to BingX");
-            return;
+        if (!connected) {
+            doConnect();
         }
-        log.info("Connecting to BingX WebSocket...");
-        doConnect();
     }
 
     private void doConnect() {
         var targetUri = URI.create(exchange.getWsUrl());
-        httpClient.newWebSocketBuilder()
-                .connectTimeout(Duration.ofSeconds(CONNECTION_TIMEOUT_SECONDS))
-                .buildAsync(targetUri, new BingXWebSocketListener())
-                .thenAccept(this::onConnected)
-                .exceptionally(this::onConnectionError);
+        this.webSocketClient = new ExchangeWebSocketClient(
+                targetUri,
+                "BingX",
+                this::onConnected,
+                this::handleMessage,
+                this::handleClose,
+                () -> {
+                    connected = false;
+                    scheduleReconnect();
+                }
+        );
+        try {
+            this.webSocketClient.connect();
+            this.connected = true;
+        } catch (Exception e) {
+            log.error("BingX: failed to connect to ws: {}", e.getMessage());
+            scheduleReconnect();
+        }
     }
 
-    private void onConnected(WebSocket ws) {
-        this.webSocket = ws;
+    private void onConnected() {
         this.connected = true;
         this.reconnectAttempt.set(0);
-        log.info("Connected to BingX WebSocket");
-        startPing();
-        subscribeAll();
-    }
-
-    private Void onConnectionError(Throwable error) {
-        log.error("Failed to connect to BingX: {}", error.getMessage());
-        scheduleReconnect();
-        return null;
+        log.info("BingX: connected to ws");
+        subscribe();
     }
 
     @Override
     public void disconnect() {
-        log.info("Disconnecting from BingX WebSocket");
+        log.info("BingX: disconnecting from ws");
         connected = false;
-        stopPing();
-        if (webSocket != null && !webSocket.isOutputClosed()) {
-            unsubscribeAll();
-            webSocket.sendClose(WebSocket.NORMAL_CLOSURE, "Client disconnecting");
+        if (webSocketClient != null && webSocketClient.isOpen()) {
+            unsubscribe();
+            webSocketClient.close();
         }
     }
 
     @Override
-    public void subscribe(String... symbols) {
-        if (symbols.length == 0) {
-            log.warn("No symbols provided for subscription");
+    public void subscribe(String symbol) {
+        if (isNullOrEmpty(symbol)) {
+            log.warn("BingX: no symbols provided for subscription");
             return;
         }
-        this.subscribedSymbols = symbols;
-        log.info("Queued subscription for {} symbols: {}", symbols.length, String.join(",", symbols));
+        this.subscribedSymbol = symbol;
         if (connected) {
-            subscribeAll();
+            subscribe();
         }
     }
 
@@ -135,8 +132,13 @@ public class BingXAdapter implements ExchangeAdapter {
     }
 
     @Override
-    public void onTicker(Consumer<Ticker> handler) {
-        tickerHandlers.add(handler);
+    public void onDeal(Consumer<Deal> handler) {
+        dealHandlers.add(handler);
+    }
+
+    @Override
+    public void onBookTicker(Consumer<BookTicker> handler) {
+        bookTickerHandlers.add(handler);
     }
 
     @Override
@@ -146,100 +148,62 @@ public class BingXAdapter implements ExchangeAdapter {
 
     @Override
     public void clearHandlers() {
-        tickerHandlers.clear();
+        dealHandlers.clear();
         orderBookHandlers.clear();
+        bookTickerHandlers.clear();
     }
 
     // --- Subscription ---
 
-    private void subscribeAll() {
-        if (subscribedSymbols == null || subscribedSymbols.length == 0) return;
-        var ws = this.webSocket;
-        if (ws == null || !connected) return;
+    private void subscribe() {
+        var client = this.webSocketClient;
+        if (client == null || !connected) return;
 
-        for (var symbol : subscribedSymbols) {
-            var formattedSymbol = formatSymbol(symbol);
-            var msg = buildSubscriptionMessage(formattedSymbol);
-            log.debug("Subscribing to {}", formattedSymbol);
-            ws.sendText(msg, true);
-        }
+        var formattedSymbol = formatSymbol(subscribedSymbol, exchange);
+
+        var dealMsg = buildSubscriptionMessage(formattedSymbol, "@trade");
+        client.send(dealMsg);
+
+        var depthMsg = buildSubscriptionMessage(formattedSymbol, "@depth50@200ms");
+        client.send(depthMsg);
+
+        var bookTickerMsg = buildSubscriptionMessage(formattedSymbol, "@bookTicker");
+        client.send(bookTickerMsg);
     }
 
-    private void unsubscribeAll() {
-        if (subscribedSymbols == null || subscribedSymbols.length == 0) return;
-        var ws = this.webSocket;
-        if (ws == null || ws.isOutputClosed()) return;
+    private void unsubscribe() {
+        var client = this.webSocketClient;
+        if (client == null || !client.isOpen()) return;
 
-        for (var symbol : subscribedSymbols) {
-            var formattedSymbol = formatSymbol(symbol);
-            var msg = buildUnsubscriptionMessage(formattedSymbol);
-            ws.sendText(msg, true);
-        }
+        var formattedSymbol = formatSymbol(subscribedSymbol, exchange);
+
+        var dealMsg = buildUnsubscriptionMessage(formattedSymbol, "@trade");
+        client.send(dealMsg);
+
+        var depthMsg = buildUnsubscriptionMessage(formattedSymbol, "@depth50@200ms");
+        client.send(depthMsg);
+
+        var bookTickerMsg = buildUnsubscriptionMessage(formattedSymbol, "@bookTicker");
+        client.send(bookTickerMsg);
     }
 
-    /**
-     * Форматирует символ в формат BingX: BTCUSDT → BTC-USDT.
-     */
-    private String formatSymbol(String symbol) {
-        var upper = symbol.toUpperCase();
-        if (upper.contains("-")) return upper;
-        if (upper.endsWith("USDT")) {
-            return upper.substring(0, upper.length() - 4) + "-USDT";
-        }
-        return upper;
+    private String buildSubscriptionMessage(String symbol, String dataType) {
+        var node = MAPPER.createObjectNode()
+                .put("id", UUID.randomUUID().toString())
+                .put("reqType", "sub")
+                .put("dataType", symbol + dataType);
+        return writeValueAsString(node);
     }
 
-    private String buildSubscriptionMessage(String symbol) {
-        var id = UUID.randomUUID().toString();
-        try {
-            var node = MAPPER.createObjectNode()
-                    .put("id", id)
-                    .put("dataType", symbol + "@bookTicker");
-            return MAPPER.writeValueAsString(node);
-        } catch (JsonProcessingException e) {
-            throw new RuntimeException("Failed to build subscription message", e);
-        }
+    private String buildUnsubscriptionMessage(String symbol, String dataType) {
+        var node = MAPPER.createObjectNode()
+                .put("id", UUID.randomUUID().toString())
+                .put("reqType", "unsub")
+                .put("dataType", symbol + dataType);
+        return writeValueAsString(node);
     }
 
-    private String buildUnsubscriptionMessage(String symbol) {
-        var id = UUID.randomUUID().toString();
-        try {
-            var node = MAPPER.createObjectNode()
-                    .put("id", id)
-                    .put("reqType", "unsub")
-                    .put("dataType", symbol + "@bookTicker");
-            return MAPPER.writeValueAsString(node);
-        } catch (JsonProcessingException e) {
-            throw new RuntimeException("Failed to build unsubscription message", e);
-        }
-    }
-
-    // --- Ping ---
-
-    private void startPing() {
-        pingTask = scheduler.scheduleAtFixedRate(
-                this::sendPing,
-                PING_INTERVAL_SECONDS,
-                PING_INTERVAL_SECONDS,
-                TimeUnit.SECONDS
-        );
-    }
-
-    private void stopPing() {
-        if (pingTask != null) {
-            pingTask.cancel(false);
-            pingTask = null;
-        }
-    }
-
-    private void sendPing() {
-        var ws = this.webSocket;
-        if (ws != null && connected) {
-            ws.sendPing(java.nio.ByteBuffer.allocate(0));
-        }
-    }
-
-    // --- Reconnection ---
+// --- Reconnection ---
 
     private void scheduleReconnect() {
         disconnect();
@@ -248,116 +212,82 @@ public class BingXAdapter implements ExchangeAdapter {
                 INITIAL_RECONNECT_DELAY_SECONDS * (long) Math.pow(2, attempt - 1),
                 MAX_RECONNECT_DELAY_SECONDS
         );
-        log.info("Scheduling BingX reconnect attempt {} in {} seconds", attempt, delay);
+        log.info("BingX: reconnect attempt {} in {} seconds", attempt, delay);
         scheduler.schedule(this::doConnect, delay, TimeUnit.SECONDS);
     }
 
-    // --- Message Handling ---
+// --- Message Handling ---
 
-    public void handleMessage(String text) {
+    private void handleMessage(String text) {
         try {
             var root = MAPPER.readTree(text);
 
             if (root.has("code") && !root.has("dataType")) {
-                log.debug("Received subscription confirmation: code={}", root.get("code").asInt());
+                log.debug("BingX: received subscription confirmation: code={}", root.get("code").asInt());
                 return;
             }
 
             var dataTypeNode = root.get("dataType");
-            var dataNode = root.get("data");
-            if (dataTypeNode == null || dataNode == null) {
-                log.debug("Skipping message without dataType/data");
+            if (dataTypeNode == null) {
+                log.debug("BingX: skipping message without dataType");
                 return;
             }
 
             var dataType = dataTypeNode.asText();
-            if (dataType.contains("bookTicker")) {
-                parseBookTicker(dataNode);
+
+            var dataNode = root.get("data");
+            if (dataNode == null || dataNode.isNull()) {
+                return;
+            }
+
+            if (dataType.contains("trade")) {
+                parseDeal(dataNode);
+            } else if (dataType.contains("bookTicker")) {
+                var symbol = normalizeSymbol(dataType.substring(0, dataType.indexOf('@')));
+                parseBookTicker(symbol, dataNode);
+            } else if (dataType.contains("depth")) {
+                var symbol = normalizeSymbol(dataType.substring(0, dataType.indexOf('@')));
+                parseDepth(symbol, dataNode);
             }
         } catch (JsonProcessingException e) {
-            log.error("Failed to parse BingX WebSocket message: {}", e.getMessage());
+            log.error("BingX: failed to parse ws message: {}", e.getMessage());
         }
     }
 
-    void parseBookTicker(JsonNode data) {
+    private void parseDeal(JsonNode node) {
+        var data = node.get(0);
         var symbol = data.get("s").asText();
-        var bidPrice = new BigDecimal(data.get("b").asText());
-        var bidQty = new BigDecimal(data.get("B").asText());
+        var price = new BigDecimal(data.get("p").asText());
+        var quantity = new BigDecimal(data.get("q").asText());
+
+        var deal = new Deal(exchange, normalizeSymbol(symbol), price, quantity, parseEventTime(data));
+        dealHandlers.forEach(h -> h.accept(deal));
+    }
+
+    private void parseBookTicker(String symbol, JsonNode data) {
         var askPrice = new BigDecimal(data.get("a").asText());
         var askQty = new BigDecimal(data.get("A").asText());
+        var bidPrice = new BigDecimal(data.get("b").asText());
+        var bidQty = new BigDecimal(data.get("B").asText());
+        var timestamp = data.get("E").asLong();
 
-        var ticker = new Ticker(exchange, normalizeSymbol(symbol), bidPrice, bidQty, askPrice, askQty, Instant.now());
-        tickerHandlers.forEach(h -> h.accept(ticker));
-
-        var bids = List.of(new OrderBookLevel(bidPrice, bidQty));
-        var asks = List.of(new OrderBookLevel(askPrice, askQty));
-        var orderBook = new OrderBook(exchange, normalizeSymbol(symbol), bids, asks, Instant.now());
-        orderBookHandlers.forEach(h -> h.accept(orderBook));
+        var bookTicker = new BookTicker(exchange, symbol, askPrice, askQty, bidPrice, bidQty, timestamp);
+        bookTickerHandlers.forEach(h -> h.accept(bookTicker));
     }
 
-    /**
-     * Нормализует символ из формата BingX (BTC-USDT) в общий (BTCUSDT).
-     */
-    private String normalizeSymbol(String symbol) {
-        return symbol.replace("-", "").toUpperCase();
+    private void parseDepth(String symbol, JsonNode data) {
+        if (!data.has("bids") || !data.has("asks")) {
+            log.debug("Binance: depth message without bids/asks for symbol={}, skipping", symbol);
+            return;
+        }
+        buildAndBroadcastOrderBook(exchange, symbol, data.get("bids"), data.get("asks"), parseTimestamp(data), orderBookHandlers);
     }
 
-    public void handleClose(int statusCode, String reason) {
-        log.warn("BingX WebSocket closed: code={}, reason={}", statusCode, reason);
+    private void handleClose(int statusCode, String reason) {
+        log.warn("BingX: ws closed: code={}, reason={}", statusCode, reason);
         connected = false;
-        stopPing();
-        if (statusCode != WebSocket.NORMAL_CLOSURE && statusCode != 1000) {
+        if (statusCode != org.java_websocket.framing.CloseFrame.NORMAL) {
             scheduleReconnect();
-        }
-    }
-
-    public void handleError(Throwable error) {
-        log.error("BingX WebSocket error: {}", error.getMessage());
-        connected = false;
-        stopPing();
-        scheduleReconnect();
-    }
-
-    // --- WebSocket Listener ---
-
-    private class BingXWebSocketListener implements WebSocket.Listener {
-
-        private final StringBuilder buffer = new StringBuilder();
-
-        @Override
-        public void onOpen(WebSocket webSocket) {
-            WebSocket.Listener.super.onOpen(webSocket);
-            log.info("BingX WebSocket connection opened");
-        }
-
-        @Override
-        public CompletionStage<?> onText(WebSocket webSocket, CharSequence data, boolean last) {
-            buffer.append(data);
-            if (last) {
-                var message = buffer.toString();
-                buffer.setLength(0);
-                handleMessage(message);
-            }
-            return WebSocket.Listener.super.onText(webSocket, data, last);
-        }
-
-        @Override
-        public CompletionStage<?> onClose(WebSocket webSocket, int statusCode, String reason) {
-            buffer.setLength(0);
-            handleClose(statusCode, reason);
-            return WebSocket.Listener.super.onClose(webSocket, statusCode, reason);
-        }
-
-        @Override
-        public void onError(WebSocket webSocket, Throwable error) {
-            handleError(error);
-            WebSocket.Listener.super.onError(webSocket, error);
-        }
-
-        @Override
-        public CompletionStage<?> onPong(WebSocket webSocket, java.nio.ByteBuffer message) {
-            log.debug("Pong received from BingX");
-            return WebSocket.Listener.super.onPong(webSocket, message);
         }
     }
 }

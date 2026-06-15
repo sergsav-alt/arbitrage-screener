@@ -1,7 +1,8 @@
 package com.arbitrage.screener.exchange;
 
+import com.arbitrage.screener.model.BookTicker;
+import com.arbitrage.screener.model.Deal;
 import com.arbitrage.screener.model.OrderBook;
-import com.arbitrage.screener.model.Ticker;
 
 import java.util.function.Consumer;
 
@@ -26,7 +27,7 @@ public interface ExchangeAdapter {
      * Подписывается на переданные потоки (streams).
      * Формат streams зависит от конкретной биржи.
      */
-    void subscribe(String... streams);
+    void subscribe(String symbol);
 
     /**
      * Возвращает true, если соединение установлено и активно.
@@ -39,14 +40,17 @@ public interface ExchangeAdapter {
     ExchangeEnum getExchange();
 
     /**
-     * Регистрирует обработчик входящих тикеров.
-     */
-    void onTicker(Consumer<Ticker> handler);
-
-    /**
      * Регистрирует обработчик обновлений стакана заявок.
      */
     void onOrderBook(Consumer<OrderBook> handler);
+
+    /**
+     * Регистрирует обработчик агрегированных сделок (aggTrade).
+     * По умолчанию нет операции — адаптеры, поддерживающие aggTrade, переопределяют.
+     */
+    void onDeal(Consumer<Deal> handler);
+
+    void onBookTicker(Consumer<BookTicker> handler);
 
     /**
      * Удаляет все зарегистрированные обработчики.

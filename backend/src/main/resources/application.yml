@@ -1,3 +1,10 @@
+server:
+  port: 8080
+
+logging:
+  level:
+    com.arbitrage.screener: INFO
+
 spring:
   application:
     name: backend
@@ -12,18 +19,7 @@ spring:
     enable: true
     change-log: classpath:db/changelog/db.changelog-master.yaml
 
-server:
-  port: 8080
-
-exchanges:
-  bingx:
-    enabled: true
-    ws-url: wss://open-api-ws.bingx.com/market
-  mexc:
-    enabled: true
-    ws-url: wss://wbs-api.mexc.com/ws
-
-symbols: BTCUSDT,ETHUSDT,SOLUSDT,BNBUSDT,XRPUSDT,ADAUSDT,DOGEUSDT
+symbols: BTCUSDC,ETHUSDC,SOLUSDC,BNBUSDC,XRPUSDC,TRXUSDC
 
 arbitrage:
   min-spread-percent: 0.1
@@ -36,11 +32,13 @@ fees:
   taker-percent:
     bingx: 0.1
     mexc: 0.1
+    binance: 0.02
   withdrawal:
     per-symbol:
       USDT:
         bingx: 1.0
         mexc: 2.0
+        binance: 0.5
     default-usdt: 2.0
 
 reconnect:
@@ -59,7 +57,3 @@ management:
 
 statistics:
   collect-interval-ms: 60000
-
-logging:
-  level:
-    com.arbitrage.screener: INFO
