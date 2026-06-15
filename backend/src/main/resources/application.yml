@@ -36,11 +36,13 @@ fees:
   taker-percent:
     bingx: 0.1
     mexc: 0.1
+    binance: 0.02
   withdrawal:
     per-symbol:
       USDT:
         bingx: 1.0
         mexc: 2.0
+        binance: 0.5
     default-usdt: 2.0
 
 reconnect:

@@ -179,7 +179,7 @@ public class BingXAdapter implements ExchangeAdapter {
      * Форматирует символ в формат BingX: BTCUSDT → BTC-USDT.
      */
     private String formatSymbol(String symbol) {
-        var upper = symbol.toUpperCase();
+        var upper = symbol.toUpperCase().replace("USDT", "USD");
         upper = (upper.contains("-")) ? upper : new StringBuilder(upper).insert(3, "-").toString();
         return upper;
     }
