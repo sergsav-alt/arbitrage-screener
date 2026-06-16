@@ -15,14 +15,6 @@ spring:
 server:
   port: 8080
 
-exchanges:
-  bingx:
-    enabled: true
-    ws-url: wss://open-api-cswap-ws.bingx.com/market
-  mexc:
-    enabled: true
-    ws-url: wss://contract.mexc.com/edge
-
 symbols: BTCUSDT
 
 arbitrage:
