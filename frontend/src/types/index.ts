@@ -47,3 +47,25 @@ export interface SpreadHistoryPoint {
   sellPrice: number;
   netProfit: number;
 }
+
+export interface TickerData {
+  exchange: string;
+  symbol: string;
+  bidPrice: number;
+  bidQty: number;
+  askPrice: number;
+  askQty: number;
+  timestamp: string;
+}
+
+export interface TickerPoint {
+  time: string;
+  timestamp: number;
+  bidPrice: number;
+  askPrice: number;
+}
+
+export interface ConnectResult {
+  connected: boolean;
+  message: string;
+}

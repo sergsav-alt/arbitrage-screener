@@ -46,7 +46,7 @@ public class BinanceAdapter implements ExchangeAdapter {
     private volatile ExchangeWebSocketClient webSocketClient;
     private volatile boolean connected = false;
     private volatile boolean closing;
-    private String subscribedSymbol;
+    private volatile String subscribedSymbol;
 
     public BinanceAdapter() {
         this.scheduler = Executors.newSingleThreadScheduledExecutor(r -> {

@@ -47,8 +47,7 @@ public class BingXAdapter implements ExchangeAdapter {
     private volatile ExchangeWebSocketClient webSocketClient;
     private volatile boolean connected = false;
     private volatile ScheduledFuture<?> pingTask;
-    private String subscribedSymbol;
-    private String id;
+    private volatile String subscribedSymbol;
 
     public BingXAdapter() {
         this.scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
@@ -177,24 +176,19 @@ public class BingXAdapter implements ExchangeAdapter {
     }
 
     private String buildSubscriptionMessage(String symbol) {
-        this.id = UUID.randomUUID().toString();
         var node = MAPPER.createObjectNode()
-                .put("id", id)
+                .put("id", UUID.randomUUID().toString())
                 .put("reqType", "sub")
                 .put("dataType", symbol + "@bookTicker");
         return writeValueAsString(node);
     }
 
     private String buildUnsubscriptionMessage(String symbol) {
-        try {
-            var node = MAPPER.createObjectNode()
-                    .put("id", this.id)
-                    .put("reqType", "unsub")
-                    .put("dataType", symbol + "@bookTicker");
-            return MAPPER.writeValueAsString(node);
-        } catch (JsonProcessingException e) {
-            throw new RuntimeException("BingX: failed to build unsubscription message", e);
-        }
+        var node = MAPPER.createObjectNode()
+                .put("id", UUID.randomUUID().toString())
+                .put("reqType", "unsub")
+                .put("dataType", symbol + "@bookTicker");
+        return writeValueAsString(node);
     }
 
 // --- Ping ---

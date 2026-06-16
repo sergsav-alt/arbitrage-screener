@@ -12,7 +12,7 @@ export const ExchangeStatus: React.FC = () => {
     };
 
     fetchStatus();
-    const interval = setInterval(fetchStatus, 5000);
+    const interval = setInterval(fetchStatus, 100000);
     return () => clearInterval(interval);
   }, []);
 

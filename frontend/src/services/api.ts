@@ -6,6 +6,8 @@ import {
   AggregatedStatistics,
   SymbolStats,
   SpreadHistoryPoint,
+  TickerData,
+  ConnectResult,
 } from '../types';
 
 const API_BASE = '/api';
@@ -86,4 +88,42 @@ export async function getSymbolHistory(
     `${API_BASE}/statistics/${symbol}/history?${params.toString()}`
   );
   return response.data;
+}
+
+export async function connectExchange(
+  exchange: string,
+  symbol: string
+): Promise<ConnectResult> {
+  const params = new URLSearchParams();
+  params.append('exchange', exchange);
+  params.append('symbol', symbol);
+  const response = await axios.get<ConnectResult>(
+    `${API_BASE}/exchange/connect?${params.toString()}`
+  );
+  return response.data;
+}
+
+export function subscribeTickerStream(
+  exchange: string,
+  onTicker: (ticker: TickerData) => void,
+  onError?: (error: Event) => void
+): EventSource {
+  const url = `${API_BASE}/stream/${exchange.toLowerCase()}`;
+  const eventSource = new EventSource(url);
+
+  eventSource.addEventListener('ticker', (event) => {
+    try {
+      console.log('------', event.data)
+      const data = JSON.parse(event.data) as TickerData;
+      onTicker(data);
+    } catch (e) {
+      console.error('Failed to parse ticker SSE data:', e);
+    }
+  });
+
+  if (onError) {
+    eventSource.onerror = onError;
+  }
+
+  return eventSource;
 }

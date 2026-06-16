@@ -46,7 +46,7 @@ public class MexcAdapter implements ExchangeAdapter {
     private volatile ExchangeWebSocketClient webSocketClient;
     private volatile boolean connected = false;
     private volatile ScheduledFuture<?> pingTask;
-    private String subscribedSymbol;
+    private volatile String subscribedSymbol;
 
     public MexcAdapter() {
         this.scheduler = Executors.newSingleThreadScheduledExecutor(r -> {

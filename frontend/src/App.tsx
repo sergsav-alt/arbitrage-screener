@@ -4,6 +4,7 @@ import { AppLayout } from './components/AppLayout';
 import { OpportunitiesTable } from './components/OpportunitiesTable';
 import { Filters } from './components/Filters';
 import { DashboardPage } from './components/DashboardPage';
+import { RateChart } from './components/RateChart';
 import { getOpportunities, subscribeOpportunities } from './services/api';
 import { ArbitrageOpportunity, OpportunityFilters } from './types';
 
@@ -59,6 +60,11 @@ const App: React.FC = () => {
       key: 'analytics',
       label: 'Аналитика',
       children: <DashboardPage />,
+    },
+    {
+      key: 'rates',
+      label: 'Курсы',
+      children: <RateChart />,
     },
   ];
 
