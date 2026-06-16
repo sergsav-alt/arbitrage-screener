@@ -1,7 +1,7 @@
 package com.arbitrage.screener.controller;
 
-import com.arbitrage.screener.core.ArbitrageService;
-import com.arbitrage.screener.core.ExchangeManager;
+import com.arbitrage.screener.metric.ArbitrageService;
+import com.arbitrage.screener.metric.ExchangeManager;
 import com.arbitrage.screener.model.ArbitrageOpportunity;
 import com.arbitrage.screener.exchange.ExchangeEnum;
 import lombok.RequiredArgsConstructor;

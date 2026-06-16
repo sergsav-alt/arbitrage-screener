@@ -1,6 +1,6 @@
 package com.arbitrage.screener.controller;
 
-import com.arbitrage.screener.core.ArbitrageService;
+import com.arbitrage.screener.metric.ArbitrageService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;

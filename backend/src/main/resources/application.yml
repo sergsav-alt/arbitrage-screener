@@ -1,3 +1,10 @@
+server:
+  port: 8080
+
+logging:
+  level:
+    com.arbitrage.screener: INFO
+
 spring:
   application:
     name: backend
@@ -12,10 +19,7 @@ spring:
     enable: true
     change-log: classpath:db/changelog/db.changelog-master.yaml
 
-server:
-  port: 8080
-
-symbols: BTCUSDT
+symbols: BTCUSDT,ETHUSDT,SOLUSDT,BNBUSDT,XRPUSDT,TRXUSDT
 
 arbitrage:
   min-spread-percent: 0.1
@@ -53,7 +57,3 @@ management:
 
 statistics:
   collect-interval-ms: 60000
-
-logging:
-  level:
-    com.arbitrage.screener: INFO

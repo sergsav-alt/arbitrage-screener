@@ -26,7 +26,7 @@ public interface ExchangeAdapter {
      * Подписывается на переданные потоки (streams).
      * Формат streams зависит от конкретной биржи.
      */
-    void subscribe(String... streams);
+    void subscribe(String symbol);
 
     /**
      * Возвращает true, если соединение установлено и активно.

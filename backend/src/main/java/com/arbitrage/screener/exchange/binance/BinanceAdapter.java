@@ -20,6 +20,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import static ch.qos.logback.core.util.StringUtil.isNullOrEmpty;
 import static com.arbitrage.screener.util.ObjectMapperHelper.objectMapper;
 
 /**
@@ -43,9 +44,9 @@ public class BinanceAdapter implements ExchangeAdapter {
     private final AtomicInteger reconnectAttempt;
 
     private volatile ExchangeWebSocketClient webSocketClient;
-    private volatile boolean connected;
+    private volatile boolean connected = false;
     private volatile boolean closing;
-    private String[] subscribedSymbols;
+    private String subscribedSymbol;
 
     public BinanceAdapter() {
         this.scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
@@ -61,10 +62,9 @@ public class BinanceAdapter implements ExchangeAdapter {
 
     @Override
     public void connect() {
-        if (connected) {
-            return;
+        if (!connected) {
+            doConnect();
         }
-        doConnect();
     }
 
     private void doConnect() {
@@ -82,6 +82,7 @@ public class BinanceAdapter implements ExchangeAdapter {
         );
         try {
             this.webSocketClient.connect();
+            this.connected = true;
         } catch (Exception e) {
             log.error("Binance: failed to connect: {}", e.getMessage());
             scheduleReconnect();
@@ -93,13 +94,10 @@ public class BinanceAdapter implements ExchangeAdapter {
      * Пример: wss://fstream.binance.com/stream?streams=btcusdt@bookTicker/ethusdt@bookTicker
      */
     private URI buildStreamUri() {
-        if (subscribedSymbols == null || subscribedSymbols.length == 0) {
+        if (isNullOrEmpty(subscribedSymbol)) {
             return URI.create(exchange.getWsUrl());
         }
-        var streams = Arrays.stream(subscribedSymbols)
-                .map(s -> formatSymbol(s) + "@bookTicker")
-                .collect(Collectors.joining("/"));
-        return URI.create(exchange.getWsUrl() + "?streams=" + streams);
+        return URI.create(exchange.getWsUrl() + "?streams=" + formatSymbol(subscribedSymbol) + "@bookTicker/");
     }
 
     private void onConnected() {
@@ -119,14 +117,16 @@ public class BinanceAdapter implements ExchangeAdapter {
     }
 
     @Override
-    public void subscribe(String... symbols) {
-        if (symbols.length == 0) {
+    public void subscribe(String symbol) {
+        if (isNullOrEmpty(symbol)) {
             log.warn("Binance: no symbols provided for subscription");
             return;
         }
-        this.subscribedSymbols = symbols;
+        this.subscribedSymbol = symbol;
         if (connected) {
-            reconnect();
+            disconnect();
+            closing = false;
+            doConnect();
         }
     }
 
@@ -154,12 +154,6 @@ public class BinanceAdapter implements ExchangeAdapter {
     public void clearHandlers() {
         tickerHandlers.clear();
         orderBookHandlers.clear();
-    }
-
-    private void reconnect() {
-        disconnect();
-        closing = false;
-        doConnect();
     }
 
     // --- Reconnection ---
@@ -228,7 +222,7 @@ public class BinanceAdapter implements ExchangeAdapter {
      * Форматирует символ в формат Binance: BTCUSDT → btcusdt.
      */
     private String formatSymbol(String symbol) {
-        return symbol.toLowerCase();
+        return symbol.toLowerCase().substring(0, 3) + "usdt";
     }
 
     /**

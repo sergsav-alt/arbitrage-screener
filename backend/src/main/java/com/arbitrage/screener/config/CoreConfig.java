@@ -1,6 +1,6 @@
 package com.arbitrage.screener.config;
 
-import com.arbitrage.screener.core.*;
+import com.arbitrage.screener.metric.*;
 import com.arbitrage.screener.model.TickerCache;
 import com.arbitrage.screener.exchange.ExchangeAdapterFactory;
 import com.arbitrage.screener.exchange.PriceNormalizer;

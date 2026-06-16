@@ -1,4 +1,4 @@
-package com.arbitrage.screener.core;
+package com.arbitrage.screener.metric;
 
 import com.arbitrage.screener.entity.ArbitrageEvent;
 import com.arbitrage.screener.entity.SpreadHistory;
@@ -15,7 +15,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.Collection;
-import java.util.List;
 import java.util.stream.Collectors;
 
 @Slf4j

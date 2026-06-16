@@ -20,6 +20,7 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
+import static ch.qos.logback.core.util.StringUtil.isNullOrEmpty;
 import static com.arbitrage.screener.util.ObjectMapperHelper.objectMapper;
 
 /**
@@ -43,9 +44,9 @@ public class MexcAdapter implements ExchangeAdapter {
     private final AtomicInteger reconnectAttempt;
 
     private volatile ExchangeWebSocketClient webSocketClient;
-    private volatile boolean connected;
+    private volatile boolean connected = false;
     private volatile ScheduledFuture<?> pingTask;
-    private String[] subscribedSymbols;
+    private String subscribedSymbol;
 
     public MexcAdapter() {
         this.scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
@@ -61,10 +62,9 @@ public class MexcAdapter implements ExchangeAdapter {
 
     @Override
     public void connect() {
-        if (connected) {
-            return;
+        if (!connected) {
+            doConnect();
         }
-        doConnect();
     }
 
     private void doConnect() {
@@ -83,6 +83,7 @@ public class MexcAdapter implements ExchangeAdapter {
         );
         try {
             this.webSocketClient.connect();
+            this.connected = true;
         } catch (Exception e) {
             log.error("MEXC: failed to connect: {}", e.getMessage());
             scheduleReconnect();
@@ -94,7 +95,7 @@ public class MexcAdapter implements ExchangeAdapter {
         this.reconnectAttempt.set(0);
         log.info("MEXC: connected to webSocket");
         startPing();
-        subscribeAll();
+        subscribe();
     }
 
     @Override
@@ -103,20 +104,20 @@ public class MexcAdapter implements ExchangeAdapter {
         connected = false;
         stopPing();
         if (webSocketClient != null && webSocketClient.isOpen()) {
-            unsubscribeAll();
+            unsubscribe();
             webSocketClient.close();
         }
     }
 
     @Override
-    public void subscribe(String... symbols) {
-        if (symbols.length == 0) {
+    public void subscribe(String symbol) {
+        if (isNullOrEmpty(symbol)) {
             log.warn("No symbols provided for subscription");
             return;
         }
-        this.subscribedSymbols = symbols;
+        this.subscribedSymbol = symbol;
         if (connected) {
-            subscribeAll();
+            subscribe();
         }
     }
 
@@ -148,29 +149,22 @@ public class MexcAdapter implements ExchangeAdapter {
 
     // --- Subscription ---
 
-    private void subscribeAll() {
-        if (subscribedSymbols == null || subscribedSymbols.length == 0) return;
+    private void subscribe() {
         var client = this.webSocketClient;
         if (client == null || !connected) return;
 
-        for (var symbol : subscribedSymbols) {
-            var formattedSymbol = formatSymbol(symbol);
-            var msg = buildSubscriptionMessage(formattedSymbol);
-            log.info("MEXC: subscribing to ticker for {}", formattedSymbol);
-            client.send(msg);
-        }
+        var formattedSymbol = formatSymbol(subscribedSymbol);
+        var msg = buildSubscriptionMessage(formattedSymbol);
+        client.send(msg);
     }
 
-    private void unsubscribeAll() {
-        if (subscribedSymbols == null || subscribedSymbols.length == 0) return;
+    private void unsubscribe() {
         var client = this.webSocketClient;
         if (client == null || !client.isOpen()) return;
 
-        for (var symbol : subscribedSymbols) {
-            var formattedSymbol = formatSymbol(symbol);
-            var msg = buildUnsubscriptionMessage(formattedSymbol);
-            client.send(msg);
-        }
+        var formattedSymbol = formatSymbol(subscribedSymbol);
+        var msg = buildUnsubscriptionMessage(formattedSymbol);
+        client.send(msg);
     }
 
     private String buildSubscriptionMessage(String symbol) {
@@ -199,12 +193,7 @@ public class MexcAdapter implements ExchangeAdapter {
      * Форматирует символ в формат MEXC futures: BTCUSDT → BTC_USDT.
      */
     private String formatSymbol(String symbol) {
-        var upper = symbol.toUpperCase();
-        if (upper.contains("_")) return upper;
-        if (upper.endsWith("USDT")) {
-            return upper.substring(0, upper.length() - 4) + "_USDT";
-        }
-        return upper;
+        return symbol.toUpperCase().substring(0, 3) + "_USDT";
     }
 
     // --- Ping ---

@@ -1,4 +1,4 @@
-package com.arbitrage.screener.core;
+package com.arbitrage.screener.metric;
 
 import java.math.BigDecimal;
 

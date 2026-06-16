@@ -20,6 +20,7 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
+import static ch.qos.logback.core.util.StringUtil.isNullOrEmpty;
 import static com.arbitrage.screener.util.ObjectMapperHelper.objectMapper;
 import static com.arbitrage.screener.util.ObjectMapperHelper.writeValueAsString;
 
@@ -44,9 +45,10 @@ public class BingXAdapter implements ExchangeAdapter {
     private final AtomicInteger reconnectAttempt;
 
     private volatile ExchangeWebSocketClient webSocketClient;
-    private volatile boolean connected;
+    private volatile boolean connected = false;
     private volatile ScheduledFuture<?> pingTask;
-    private String[] subscribedSymbols;
+    private String subscribedSymbol;
+    private String id;
 
     public BingXAdapter() {
         this.scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
@@ -62,11 +64,9 @@ public class BingXAdapter implements ExchangeAdapter {
 
     @Override
     public void connect() {
-        if (connected) {
-            log.info("BingX: already connected to webSocket");
-            return;
+        if (!connected) {
+            doConnect();
         }
-        doConnect();
     }
 
     private void doConnect() {
@@ -85,6 +85,7 @@ public class BingXAdapter implements ExchangeAdapter {
         );
         try {
             this.webSocketClient.connect();
+            this.connected = true;
         } catch (Exception e) {
             log.error("BingX: failed to connect to webSocket: {}", e.getMessage());
             scheduleReconnect();
@@ -96,7 +97,7 @@ public class BingXAdapter implements ExchangeAdapter {
         this.reconnectAttempt.set(0);
         log.info("BingX: connected to webSocket");
         startPing();
-        subscribeAll();
+        subscribe();
     }
 
     @Override
@@ -105,20 +106,20 @@ public class BingXAdapter implements ExchangeAdapter {
         connected = false;
         stopPing();
         if (webSocketClient != null && webSocketClient.isOpen()) {
-            unsubscribeAll();
+            unsubscribe();
             webSocketClient.close();
         }
     }
 
     @Override
-    public void subscribe(String... symbols) {
-        if (symbols.length == 0) {
+    public void subscribe(String symbol) {
+        if (isNullOrEmpty(symbol)) {
             log.warn("BingX: no symbols provided for subscription");
             return;
         }
-        this.subscribedSymbols = symbols;
+        this.subscribedSymbol = symbol;
         if (connected) {
-            subscribeAll();
+            subscribe();
         }
     }
 
@@ -150,42 +151,33 @@ public class BingXAdapter implements ExchangeAdapter {
 
     // --- Subscription ---
 
-    private void subscribeAll() {
-        if (subscribedSymbols == null || subscribedSymbols.length == 0) return;
+    private void subscribe() {
         var client = this.webSocketClient;
         if (client == null || !connected) return;
 
-        for (var symbol : subscribedSymbols) {
-            var formattedSymbol = formatSymbol(symbol);
-            var msg = buildSubscriptionMessage(formattedSymbol);
-            log.info("BingX: subscribing to {}", formattedSymbol);
-            client.send(msg);
-        }
+        var formattedSymbol = formatSymbol(subscribedSymbol);
+        var msg = buildSubscriptionMessage(formattedSymbol);
+        client.send(msg);
     }
 
-    private void unsubscribeAll() {
-        if (subscribedSymbols == null || subscribedSymbols.length == 0) return;
+    private void unsubscribe() {
         var client = this.webSocketClient;
         if (client == null || !client.isOpen()) return;
 
-        for (var symbol : subscribedSymbols) {
-            var formattedSymbol = formatSymbol(symbol);
-            var msg = buildUnsubscriptionMessage(formattedSymbol);
-            client.send(msg);
-        }
+        var formattedSymbol = formatSymbol(subscribedSymbol);
+        var msg = buildUnsubscriptionMessage(formattedSymbol);
+        client.send(msg);
     }
 
     /**
      * Форматирует символ в формат BingX: BTCUSDT → BTC-USDT.
      */
     private String formatSymbol(String symbol) {
-        var upper = symbol.toUpperCase().replace("USDT", "USD");
-        upper = (upper.contains("-")) ? upper : new StringBuilder(upper).insert(3, "-").toString();
-        return upper;
+        return symbol.toUpperCase().substring(0, 3) + "-USD";
     }
 
     private String buildSubscriptionMessage(String symbol) {
-        var id = UUID.randomUUID().toString();
+        this.id = UUID.randomUUID().toString();
         var node = MAPPER.createObjectNode()
                 .put("id", id)
                 .put("reqType", "sub")
@@ -194,10 +186,9 @@ public class BingXAdapter implements ExchangeAdapter {
     }
 
     private String buildUnsubscriptionMessage(String symbol) {
-        var id = UUID.randomUUID().toString();
         try {
             var node = MAPPER.createObjectNode()
-                    .put("id", id)
+                    .put("id", this.id)
                     .put("reqType", "unsub")
                     .put("dataType", symbol + "@bookTicker");
             return MAPPER.writeValueAsString(node);

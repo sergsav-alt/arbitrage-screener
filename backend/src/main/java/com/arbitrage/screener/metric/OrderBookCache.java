@@ -1,4 +1,4 @@
-package com.arbitrage.screener.core;
+package com.arbitrage.screener.metric;
 
 import com.arbitrage.screener.model.OrderBook;
 import com.arbitrage.screener.exchange.ExchangeEnum;
