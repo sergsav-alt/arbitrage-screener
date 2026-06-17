@@ -222,7 +222,7 @@ public class BinanceAdapter implements ExchangeAdapter {
      * Форматирует символ в формат Binance: BTCUSDT → btcusdt.
      */
     private String formatSymbol(String symbol) {
-        return symbol.toLowerCase().substring(0, 3) + "usdt";
+        return symbol.toLowerCase().substring(0, 3) + "usdc";
     }
 
     /**

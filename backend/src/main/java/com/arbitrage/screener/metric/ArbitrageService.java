@@ -1,7 +1,7 @@
 package com.arbitrage.screener.metric;
 
 import com.arbitrage.screener.model.ArbitrageOpportunity;
-import com.arbitrage.screener.model.TickerCache;
+import com.arbitrage.screener.cache.TickerCache;
 import com.arbitrage.screener.exchange.PriceNormalizer;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

@@ -1,5 +1,6 @@
 package com.arbitrage.screener.metric;
 
+import com.arbitrage.screener.cache.OrderBookCache;
 import com.arbitrage.screener.model.ArbitrageOpportunity;
 import com.arbitrage.screener.model.ArbitrageType;
 import com.arbitrage.screener.model.Ticker;

@@ -1,6 +1,7 @@
-package com.arbitrage.screener.model;
+package com.arbitrage.screener.cache;
 
 import com.arbitrage.screener.exchange.ExchangeEnum;
+import com.arbitrage.screener.model.Ticker;
 import lombok.Getter;
 
 import java.time.Duration;

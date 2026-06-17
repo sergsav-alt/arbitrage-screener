@@ -1,9 +1,9 @@
 package com.arbitrage.screener.controller;
 
+import com.arbitrage.screener.exchange.ExchangeEnum;
 import com.arbitrage.screener.metric.ArbitrageService;
 import com.arbitrage.screener.metric.ExchangeManager;
 import com.arbitrage.screener.model.ArbitrageOpportunity;
-import com.arbitrage.screener.exchange.ExchangeEnum;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
@@ -66,6 +66,9 @@ public class ArbitrageController {
 
     @GetMapping("/symbols")
     public List<String> getSymbols() {
-        return symbols;
+        return symbols.stream()
+                .map(symbol ->
+                        new StringBuilder(symbol).insert(3, "-").toString())
+                .toList();
     }
 }

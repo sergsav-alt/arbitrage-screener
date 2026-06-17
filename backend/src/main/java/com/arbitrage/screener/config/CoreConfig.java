@@ -1,7 +1,8 @@
 package com.arbitrage.screener.config;
 
+import com.arbitrage.screener.cache.OrderBookCache;
 import com.arbitrage.screener.metric.*;
-import com.arbitrage.screener.model.TickerCache;
+import com.arbitrage.screener.cache.TickerCache;
 import com.arbitrage.screener.exchange.ExchangeAdapterFactory;
 import com.arbitrage.screener.exchange.PriceNormalizer;
 import org.springframework.beans.factory.annotation.Value;

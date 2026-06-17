@@ -19,7 +19,7 @@ spring:
     enable: true
     change-log: classpath:db/changelog/db.changelog-master.yaml
 
-symbols: BTCUSDT,ETHUSDT,SOLUSDT,BNBUSDT,XRPUSDT,TRXUSDT
+symbols: BTCUSDC,ETHUSDC,SOLUSDC,BNBUSDC,XRPUSDC,TRXUSDC
 
 arbitrage:
   min-spread-percent: 0.1

@@ -193,7 +193,7 @@ public class MexcAdapter implements ExchangeAdapter {
      * Форматирует символ в формат MEXC futures: BTCUSDT → BTC_USDT.
      */
     private String formatSymbol(String symbol) {
-        return symbol.toUpperCase().substring(0, 3) + "_USDT";
+        return symbol.toUpperCase().substring(0, 3) + "_USDC";
     }
 
     // --- Ping ---

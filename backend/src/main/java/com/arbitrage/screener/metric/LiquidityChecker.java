@@ -1,5 +1,6 @@
 package com.arbitrage.screener.metric;
 
+import com.arbitrage.screener.cache.OrderBookCache;
 import com.arbitrage.screener.model.OrderBook;
 import com.arbitrage.screener.model.OrderBookLevel;
 import com.arbitrage.screener.exchange.ExchangeEnum;

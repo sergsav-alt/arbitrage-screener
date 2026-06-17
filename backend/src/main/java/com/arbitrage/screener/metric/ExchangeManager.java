@@ -1,8 +1,9 @@
 package com.arbitrage.screener.metric;
 
+import com.arbitrage.screener.cache.OrderBookCache;
 import com.arbitrage.screener.model.OrderBook;
 import com.arbitrage.screener.model.Ticker;
-import com.arbitrage.screener.model.TickerCache;
+import com.arbitrage.screener.cache.TickerCache;
 import com.arbitrage.screener.exchange.ExchangeAdapter;
 import com.arbitrage.screener.exchange.ExchangeAdapterFactory;
 import com.arbitrage.screener.exchange.ExchangeEnum;

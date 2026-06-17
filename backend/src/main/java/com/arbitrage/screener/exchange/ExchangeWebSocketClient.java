@@ -47,7 +47,7 @@ public class ExchangeWebSocketClient extends WebSocketClient {
 
     @Override
     public void onMessage(String message) {
-        log.info("{}: webSocket connection message: {}", exchangeName, message);
+        //log.info("{}: webSocket connection message: {}", exchangeName, message);
         onMessageCallback.accept(message);
     }
 
@@ -58,7 +58,7 @@ public class ExchangeWebSocketClient extends WebSocketClient {
             if (decoded.contains("ping")) {
                 send("pong");
             } else {
-                log.info("{}: webSocket binary message: {}", exchangeName, decoded);
+                //log.info("{}: webSocket binary message: {}", exchangeName, decoded);
                 onMessageCallback.accept(decoded);
             }
         } catch (IOException e) {

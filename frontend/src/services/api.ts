@@ -39,7 +39,7 @@ export function subscribeOpportunities(
   onData: (opportunities: ArbitrageOpportunity[]) => void,
   onError?: (error: Event) => void
 ): EventSource {
-  const eventSource = new EventSource(`${API_BASE}/stream/opportunities`);
+  const eventSource = new EventSource(`http://localhost:8080${API_BASE}/stream/opportunities`);
 
   eventSource.addEventListener('opportunities', (event) => {
     try {
@@ -108,12 +108,11 @@ export function subscribeTickerStream(
   onTicker: (ticker: TickerData) => void,
   onError?: (error: Event) => void
 ): EventSource {
-  const url = `${API_BASE}/stream/${exchange.toLowerCase()}`;
+  const url = `http://localhost:8080${API_BASE}/stream/${exchange.toLowerCase()}`;
   const eventSource = new EventSource(url);
 
   eventSource.addEventListener('ticker', (event) => {
     try {
-      console.log('------', event.data)
       const data = JSON.parse(event.data) as TickerData;
       onTicker(data);
     } catch (e) {
