@@ -1,11 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { Button, Card, Select, Table, Tag, message } from 'antd'
-import { connectExchange, subscribeStream, getSymbols } from '../services/api'
+import { connectExchange, subscribeStream, getSymbols, disconnectExchanges, disconnectExchange } from '../services/api'
 import { DealData, OrderBookLevel } from '../types'
 import { EXCHANGE_OPTIONS } from '../constants'
 
-const MAX_TRADES = 20
-const ORDER_BOOK_DEPTH = 10
+const MAX_TRADES = 30
+const ORDER_BOOK_DEPTH = 100
 
 interface TradeEntry {
   price: number
@@ -24,33 +24,28 @@ interface TableRow {
   tradeTime: string
 }
 
-function formatTime(isoString: string): string {
-  const match = isoString.match(/T(\d{2}):(\d{2}):(\d{2})\.?(\d*)/)
-  if (match) {
-    const [, h, m, s, ms] = match
-    const frac = (ms || '000').padEnd(4, '0').slice(0, 4)
-    return `${h}:${m}:${s}.${frac}`
-  }
-  const d = new Date(isoString)
-  if (isNaN(d.getTime())) return isoString
-  const h = d.getHours().toString().padStart(2, '0')
-  const m = d.getMinutes().toString().padStart(2, '0')
-  const s = d.getSeconds().toString().padStart(2, '0')
-  const ms = d.getMilliseconds().toString().padStart(3, '0')
-  return `${h}:${m}:${s}.${ms}0`
+function formatTime(duration: number): string {
+  const milliseconds = parseInt(String((duration % 1000) / 100))
+    let seconds: string | number = parseInt(String((duration / 1000) % 60))
+    let minutes: string | number = parseInt(String((duration / (1000 * 60)) % 60))
+    let hours: string | number = parseInt(String((duration / (1000 * 60 * 60)) % 24))
+
+  hours = (hours < 10) ? "0" + hours : hours
+  minutes = (minutes < 10) ? "0" + minutes : minutes
+  seconds = (seconds < 10) ? "0" + seconds : seconds
+
+  return hours + ":" + minutes + ":" + seconds + "." + milliseconds;
 }
 
 function formatPrice(value: number): string {
-  return value.toLocaleString('ru-RU', {
-    minimumFractionDigits: 1,
-    maximumFractionDigits: 4,
-  })
+  return value?.toFixed(2).toString()
 }
 
-function formatSize(value: number): string {
-  if (value >= 1000) return value.toLocaleString('ru-RU', { maximumFractionDigits: 1 })
-  if (value >= 1) return value.toLocaleString('ru-RU', { maximumFractionDigits: 4 })
-  return value.toLocaleString('ru-RU', { maximumFractionDigits: 6 })
+const colors = {
+  turquoise: "#578BC2",
+  cyan: "#A1C4EB",
+  chlorine: "#37D83F",
+  whitesmoke: "#F1FCFE",
 }
 
 export const OrderBookPanel: React.FC = () => {
@@ -59,17 +54,21 @@ export const OrderBookPanel: React.FC = () => {
   const [symbols, setSymbols] = useState<string[]>([])
   const [connecting, setConnecting] = useState(false)
   const [connected, setConnected] = useState(false)
-  const [paused, setPaused] = useState(false)
+  const [stoped, setStoped] = useState(false)
 
   const [bids, setBids] = useState<OrderBookLevel[]>([])
   const [asks, setAsks] = useState<OrderBookLevel[]>([])
   const [trades, setTrades] = useState<TradeEntry[]>([])
 
   const eventSourceRef = useRef<EventSource | null>(null)
-  const latestTickerRef = useRef<DealData | null>(null)
+  const latestDealRef = useRef<DealData | null>(null)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
+  const getTableHeight = () => Math.max(200, window.innerHeight - 400)
+  const [tableHeight, setTableHeight] = useState(getTableHeight)
+
   useEffect(() => {
+    disconnectExchanges().catch(e => console.error(e))
     getSymbols()
       .then((list) => {
         setSymbols(list)
@@ -77,8 +76,11 @@ export const OrderBookPanel: React.FC = () => {
         if (btc) setSymbol(btc)
       })
       .catch(console.error)
+    const handleResize = () => setTableHeight(getTableHeight())
+    window.addEventListener('resize', handleResize)
 
     return () => {
+      window.removeEventListener('resize', handleResize)
       disconnectStream()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -93,7 +95,7 @@ export const OrderBookPanel: React.FC = () => {
       clearInterval(intervalRef.current)
       intervalRef.current = null
     }
-    latestTickerRef.current = null
+    latestDealRef.current = null
   }
 
   const handleStart = async () => {
@@ -104,7 +106,7 @@ export const OrderBookPanel: React.FC = () => {
     disconnectStream()
     setConnecting(true)
     setConnected(false)
-    setPaused(false)
+    setStoped(false)
     setBids([])
     setAsks([])
     setTrades([])
@@ -120,10 +122,10 @@ export const OrderBookPanel: React.FC = () => {
       eventSourceRef.current = subscribeStream(
         exchange,
         {
-          onDeal: (ticker) => {
+          onDeal: (deal) => {
             setConnected(true)
             setConnecting(false)
-            latestTickerRef.current = ticker
+            latestDealRef.current = deal
           },
           onOrderBook: (ob) => {
             setConnected(true)
@@ -140,35 +142,36 @@ export const OrderBookPanel: React.FC = () => {
       )
 
       intervalRef.current = setInterval(() => {
-        const ticker = latestTickerRef.current
-        if (!ticker) return
+        const deal = latestDealRef.current
+        if (!deal) return
         setTrades((prev) => {
           const entry: TradeEntry = {
-            price: ticker.price,
-            size: ticker.quantity,
-            time: formatTime(ticker.timestamp),
+            price: deal.price,
+            size: deal.quantity,
+            time: formatTime(deal.timestamp),
           }
           const next = [entry, ...prev]
           return next.slice(0, MAX_TRADES)
         })
-      }, 1000)
+      }, 200)
     } catch (err) {
       setConnecting(false)
       message.error('Ошибка подключения: ' + (err instanceof Error ? err.message : String(err)))
     }
   }
 
-  const handlePause = () => {
+  const handleStop = async () => {
+    await disconnectExchange(exchange)
     disconnectStream()
     setConnected(false)
     setConnecting(false)
-    setPaused(true)
-    message.info('Пауза')
+    setStoped(true)
+    message.info('Остановлено')
   }
 
   const symbolOptions = symbols.map((s) => ({ value: s, label: s }))
-  const statusColor = connecting ? 'orange' : connected ? 'green' : paused ? 'blue' : 'default'
-  const statusText = connecting ? 'Подключение...' : connected ? 'Подключено' : paused ? 'Пауза' : 'Не подключено'
+  const statusColor = connecting ? 'orange' : connected ? 'green' : stoped ? 'blue' : 'default'
+  const statusText = connecting ? 'Подключение...' : connected ? 'Подключено' : stoped ? 'Остановлено' : 'Не подключено'
 
   const maxRows = Math.max(bids.length, asks.length, Math.min(trades.length, ORDER_BOOK_DEPTH), 5)
   const rows: TableRow[] = []
@@ -177,106 +180,189 @@ export const OrderBookPanel: React.FC = () => {
     rows.push({
       key: i,
       bidPrice: i < bids.length ? formatPrice(bids[i].price) : '',
-      bidSize: i < bids.length ? formatSize(bids[i].quantity) : '',
+      bidSize: i < bids.length ? bids[i].quantity.toString() : '',
       askPrice: i < asks.length ? formatPrice(asks[i].price) : '',
-      askSize: i < asks.length ? formatSize(asks[i].quantity) : '',
+      askSize: i < asks.length ? asks[i].quantity.toString() : '',
       tradePrice: i < trades.length ? formatPrice(trades[i].price) : '',
-      tradeSize: i < trades.length ? formatSize(trades[i].size) : '',
+      tradeSize: i < trades.length ? trades[i].size.toString() : '',
       tradeTime: i < trades.length ? trades[i].time : '',
     })
   }
 
+  const colorValues = Object.values(colors)
+
+  const bidPriceColorMap = new Map<number, string>()
+  const uniqueBidPrices = Array.from(new Set(bids.map(b => b.price)))
+  uniqueBidPrices.forEach((price, idx) => {
+    bidPriceColorMap.set(price, colorValues[idx % colorValues.length])
+  })
+
+  const askPriceColorMap = new Map<number, string>()
+  const uniqueAskPrices = Array.from(new Set(asks.map(a => a.price)))
+  uniqueAskPrices.forEach((price, idx) => {
+    askPriceColorMap.set(price, colorValues[idx % colorValues.length])
+  })
+
   const columns = [
     {
       title: 'BID',
-      children: [
-        {
-          title: 'Price',
-          dataIndex: 'bidPrice',
-          key: 'bidPrice',
-          width: 110,
-          align: 'right' as const,
-          render: (v: string) => (
-            <span style={{ color: '#52c41a', fontFamily: 'monospace', fontWeight: 500 }}>
-              {v || '\u00A0'}
-            </span>
-          ),
-        },
-        {
-          title: 'Size',
-          dataIndex: 'bidSize',
-          key: 'bidSize',
-          width: 90,
-          align: 'right' as const,
-          render: (v: string) => (
-            <span style={{ fontFamily: 'monospace' }}>{v || '\u00A0'}</span>
-          ),
-        },
-      ],
+      dataIndex: 'bidPrice',
+      key: 'bidPrice',
+      width: 110,
+      align: 'center' as const,
+      onCell: (_record: TableRow, index?: number) => {
+        const price = index != null ? bids[index]?.price : undefined
+        return {
+          style: price != null ? { backgroundColor: bidPriceColorMap.get(price) } : {}
+        }
+      },
+      render: (v: string) => (
+        <span style={{ color: '#52c41a', fontFamily: 'monospace', fontWeight: 500 }}>
+          {v || '\u00A0'}
+        </span>
+      ),
+    },
+    {
+      title: 'Size',
+      dataIndex: 'bidSize',
+      key: 'bidSize',
+      width: 90,
+      align: 'center' as const,
+      onCell: (_record: TableRow, index?: number) => {
+        const price = index != null ? bids[index]?.price : undefined
+        return {
+          style: price != null ? { backgroundColor: bidPriceColorMap.get(price) } : {}
+        }
+      },
+      render: (v: string) => (
+        <span style={{ fontFamily: 'monospace' }}>{v || '\u00A0'}</span>
+      ),
     },
     {
       title: 'ASK',
-      children: [
-        {
-          title: 'Price',
-          dataIndex: 'askPrice',
-          key: 'askPrice',
-          width: 110,
-          align: 'right' as const,
-          render: (v: string) => (
-            <span style={{ color: '#ff4d4f', fontFamily: 'monospace', fontWeight: 500 }}>
-              {v || '\u00A0'}
-            </span>
-          ),
-        },
-        {
-          title: 'Size',
-          dataIndex: 'askSize',
-          key: 'askSize',
-          width: 90,
-          align: 'right' as const,
-          render: (v: string) => (
-            <span style={{ fontFamily: 'monospace' }}>{v || '\u00A0'}</span>
-          ),
-        },
-      ],
+      dataIndex: 'askPrice',
+      key: 'askPrice',
+      width: 110,
+      align: 'center' as const,
+      onCell: (_record: TableRow, index?: number) => {
+        const price = index != null ? asks[index]?.price : undefined
+        return {
+          style: price != null ? { backgroundColor: askPriceColorMap.get(price) } : {}
+        }
+      },
+      render: (v: string) => (
+        <span style={{ color: '#ff4d4f', fontFamily: 'monospace', fontWeight: 500 }}>
+          {v || '\u00A0'}
+        </span>
+      ),
     },
     {
-      title: 'T&S',
-      children: [
-        {
-          title: 'Price',
-          dataIndex: 'tradePrice',
-          key: 'tradePrice',
-          width: 110,
-          align: 'right' as const,
-          render: (v: string) => (
-            <span style={{ fontFamily: 'monospace', fontWeight: 500 }}>{v || '\u00A0'}</span>
-          ),
-        },
-        {
-          title: 'Size',
-          dataIndex: 'tradeSize',
-          key: 'tradeSize',
-          width: 90,
-          align: 'right' as const,
-          render: (v: string) => (
-            <span style={{ fontFamily: 'monospace' }}>{v || '\u00A0'}</span>
-          ),
-        },
-        {
-          title: 'Time',
-          dataIndex: 'tradeTime',
-          key: 'tradeTime',
-          width: 130,
-          align: 'right' as const,
-          render: (v: string) => (
-            <span style={{ fontFamily: 'monospace', fontSize: 11 }}>{v || '\u00A0'}</span>
-          ),
-        },
-      ],
+      title: 'Size',
+      dataIndex: 'askSize',
+      key: 'askSize',
+      width: 90,
+      align: 'center' as const,
+      onCell: (_record: TableRow, index?: number) => {
+        const price = index != null ? asks[index]?.price : undefined
+        return {
+          style: price != null ? { backgroundColor: askPriceColorMap.get(price) } : {}
+        }
+      },
+      render: (v: string) => (
+        <span style={{ fontFamily: 'monospace' }}>{v || '\u00A0'}</span>
+      ),
+    },
+    {
+      title: 'T & S',
+      dataIndex: 'tradePrice',
+      key: 'tradePrice',
+      width: 110,
+      align: 'center' as const,
+      onCell: () => ({ style: { backgroundColor: '#000000' } }),
+      render: (v: string, _record: TableRow, index: number) => {
+        const price = trades[index]?.price
+        const topBid = bids[0]?.price
+        let color = '#fff'
+        if (price != null && topBid != null) {
+          if (price > topBid) color = '#52c41a'
+          else if (price === topBid) color = '#fa8c16'
+        }
+        return (
+          <span style={{ fontFamily: 'monospace', fontWeight: 500, color }}>
+            {v || '\u00A0'}
+          </span>
+        )
+      },
+    },
+    {
+      title: 'Size',
+      dataIndex: 'tradeSize',
+      key: 'tradeSize',
+      width: 90,
+      align: 'center' as const,
+      onCell: () => ({ style: { backgroundColor: '#000000' } }),
+      render: (v: string, _record: TableRow, index: number) => {
+        const price = trades[index]?.price
+        const topBid = bids[0]?.price
+        let color = '#fff'
+        if (price != null && topBid != null) {
+          if (price > topBid) color = '#52c41a'
+          else if (price === topBid) color = '#fa8c16'
+        }
+        return (
+          <span style={{ fontFamily: 'monospace', color }}>{v || '\u00A0'}</span>
+        )
+      },
+    },
+    {
+      title: 'Time',
+      dataIndex: 'tradeTime',
+      key: 'tradeTime',
+      width: 130,
+      align: 'center' as const,
+      onCell: () => ({ style: { backgroundColor: '#000000' } }),
+      render: (v: string, _record: TableRow, index: number) => {
+        const price = trades[index]?.price
+        const topBid = bids[0]?.price
+        let color = '#fff'
+        if (price != null && topBid != null) {
+          if (price > topBid) color = '#52c41a'
+          else if (price === topBid) color = '#fa8c16'
+        }
+        return (
+          <span style={{ fontFamily: 'monospace', color }}>{v || '\u00A0'}</span>
+        )
+      },
     },
   ]
+
+  const orderBookColumns = columns.slice(0, 4)
+  const tradeColumns = columns.slice(4)
+
+  const sharedTableProps = {
+    dataSource: rows,
+    pagination: false as const,
+    size: 'small' as const,
+    bordered: true,
+    scroll: { y: tableHeight } as const,
+    components: {
+      header: {
+        cell: (props: React.HTMLAttributes<HTMLElement>) => (
+          <th
+            {...props}
+            style={{
+              ...props.style,
+              backgroundColor: '#738394',
+              color: '#fff',
+              padding: '12px 8px',
+              fontSize: '18px',
+              fontWeight: 700,
+            }}
+          />
+        ),
+      },
+    },
+  }
 
   return (
     <div>
@@ -299,7 +385,7 @@ export const OrderBookPanel: React.FC = () => {
                 if (connected) disconnectStream()
                 setConnected(false)
                 setConnecting(false)
-                setPaused(false)
+                setStoped(false)
               }}
               options={EXCHANGE_OPTIONS}
             />
@@ -316,7 +402,7 @@ export const OrderBookPanel: React.FC = () => {
                 if (connected) disconnectStream()
                 setConnected(false)
                 setConnecting(false)
-                setPaused(false)
+                setStoped(false)
               }}
               options={symbolOptions}
               showSearch
@@ -331,8 +417,8 @@ export const OrderBookPanel: React.FC = () => {
               Пуск
             </Button>
           ) : (
-            <Button onClick={handlePause}>
-              Пауза
+            <Button onClick={handleStop}>
+              Стоп
             </Button>
           )}
 
@@ -342,18 +428,26 @@ export const OrderBookPanel: React.FC = () => {
         </div>
       </Card>
 
-      <Card title={`Order Book${symbol ? ` — ${symbol}` : ''}`}>
-        <Table
-          columns={columns}
-          dataSource={rows}
-          pagination={false}
-          size="small"
-          bordered
-          scroll={{ x: 'max-content' }}
-          locale={{
-            emptyText: connected ? 'Ожидание данных...' : 'Нажмите «Пуск» для загрузки',
-          }}
-        />
+      <Card
+        title={`Order Book${symbol ? ` — ${symbol}` : ''}`}
+        bodyStyle={{ padding: '8px' }}
+      >
+        <div style={{ display: 'flex', gap: 0 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <Table
+              {...sharedTableProps}
+              columns={orderBookColumns}
+              rowKey="key"
+            />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <Table
+              {...sharedTableProps}
+              columns={tradeColumns}
+              rowKey="key"
+            />
+          </div>
+        </div>
       </Card>
     </div>
   )

@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Line } from 'react-chartjs-2'
 import '../chartSetup'
 import { Button, Card, Checkbox, Select, Tag, message } from 'antd'
-import { connectExchange, getSymbols, subscribeTickerStream } from '../services/api'
+import { connectExchange, disconnectExchange, getSymbols, subscribeBookTickerStream } from '../services/api'
 import { TickerData } from '../types'
 import { EXCHANGE_OPTIONS } from '../constants'
 
@@ -203,6 +203,8 @@ export const CrossRatesChart: React.FC = () => {
       conn.current.eventSource.close()
       conn.current.eventSource = null
     }
+    disconnectExchange(exchangeA).catch(console.error)
+    disconnectExchange(exchangeB).catch(console.error)
     conn.current.connected = false
   }
 
@@ -220,7 +222,7 @@ export const CrossRatesChart: React.FC = () => {
     connRef: React.MutableRefObject<ExchangeConnection>,
     onTicker: (ticker: TickerData) => void,
   ): EventSource => {
-    return subscribeTickerStream(
+    return subscribeBookTickerStream(
       exchange,
       (ticker) => {
         connRef.current.connected = true

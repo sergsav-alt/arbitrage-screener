@@ -19,7 +19,7 @@ export interface DealData {
   symbol: string
   price: number
   quantity: number
-  timestamp: string
+  timestamp: number
 }
 
 export interface ConnectResult {

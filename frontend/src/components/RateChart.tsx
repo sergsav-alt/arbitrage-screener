@@ -2,7 +2,13 @@ import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Line } from 'react-chartjs-2'
 import '../chartSetup'
 import { Button, Card, Select, Tag, message } from 'antd'
-import { connectExchange, subscribeTickerStream, getSymbols, fetchOrderBook } from '../services/api'
+import {
+  connectExchange,
+  subscribeBookTickerStream,
+  getSymbols,
+  fetchOrderBook,
+  disconnectExchange,
+} from '../services/api'
 import { TickerData, OrderBookData } from '../types'
 import { EXCHANGE_OPTIONS } from '../constants'
 import { OrderBookTable } from './OrderBookTable'
@@ -130,6 +136,7 @@ export const RateChart: React.FC = () => {
       eventSourceRef.current.close()
       eventSourceRef.current = null
     }
+    disconnectExchange(exchange).catch(console.error)
     obBufferRef.current = { bidMap: new Map(), askMap: new Map() }
     latestTickerRef.current = null
   }
@@ -153,7 +160,7 @@ export const RateChart: React.FC = () => {
         message.info(result.message || 'Ожидание подключения...')
       }
 
-      eventSourceRef.current = subscribeTickerStream(
+      eventSourceRef.current = subscribeBookTickerStream(
         exchange,
         (ticker) => {
           setConnected(true)

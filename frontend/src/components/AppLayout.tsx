@@ -28,7 +28,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
         <Sider width={280} style={{ background: '#fff', padding: '16px', overflow: 'auto' }}>
           <ExchangeStatus />
         </Sider>
-        <Content style={{ padding: '24px', background: '#f5f5f5' }}>{children}</Content>
+        <Content style={{ padding: '0 240px', background: '#f5f5f5' }}>{children}</Content>
       </Layout>
     </Layout>
   )

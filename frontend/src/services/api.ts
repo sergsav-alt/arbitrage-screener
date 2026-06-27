@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { ExchangeStatus, TickerData, ConnectResult, OrderBookData } from '../types'
+import { ExchangeStatus, TickerData, ConnectResult, OrderBookData, DealData } from '../types'
 
 const API_BASE = '/api'
 const API_SERVER = 'http://localhost:8080/api'
@@ -28,18 +28,23 @@ export async function disconnectExchange(exchange: string) {
   await axios.get<void>(`${API_BASE}/exchange/disconnect?${params.toString()}`)
 }
 
-export function subscribeTickerStream(
+export async function disconnectExchanges(): Promise<void> {
+  const exchanges = await getExchanges()
+  await Promise.all(exchanges.map((e) => disconnectExchange(e.exchange)))
+}
+
+export function subscribeBookTickerStream(
   exchange: string,
-  onTicker: (ticker: TickerData) => void,
+  onBookTicker: (ticker: TickerData) => void,
   onError?: (error: Event) => void,
 ): EventSource {
   const url = `${API_SERVER}/stream/${exchange.toLowerCase()}`
   const eventSource = new EventSource(url)
 
-  eventSource.addEventListener('ticker', (event) => {
+  eventSource.addEventListener('bookticker', (event) => {
     try {
       const data = JSON.parse(event.data) as TickerData
-      onTicker(data)
+      onBookTicker(data)
     } catch (e) {
       console.error('Failed to parse ticker SSE data:', e)
     }
@@ -51,7 +56,8 @@ export function subscribeTickerStream(
 }
 
 export interface StreamHandlers {
-  onTicker?: (ticker: TickerData) => void
+  onDeal?: (deal: DealData) => void
+  onBookTicker?: (ticker: TickerData) => void
   onOrderBook?: (orderBook: OrderBookData) => void
 }
 
@@ -63,11 +69,11 @@ export function subscribeStream(
   const url = `${API_SERVER}/stream/${exchange.toLowerCase()}`
   const eventSource = new EventSource(url)
 
-  if (handlers.onTicker) {
-    eventSource.addEventListener('ticker', (event) => {
+  if (handlers.onDeal) {
+    eventSource.addEventListener('deal', (event) => {
       try {
-        const data = JSON.parse(event.data) as TickerData
-        handlers.onTicker!(data)
+        const data = JSON.parse(event.data) as DealData
+        handlers.onDeal!(data)
       } catch (e) {
         console.error('Failed to parse ticker SSE data:', e)
       }
