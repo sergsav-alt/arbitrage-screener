@@ -39,7 +39,7 @@ public class ExchangeController {
             @RequestParam String exchange,
             @RequestParam String symbol
     ) {
-        var exchangeEnum = parseExchange(exchange);
+        var exchangeEnum = ExchangeEnum.fromString(exchange);
         var normalizedSymbol = symbol.toUpperCase().trim().substring(0, 3) + "USDT";
 
         log.info("REST request: connect to {} for symbol {}", exchangeEnum, normalizedSymbol);
@@ -64,7 +64,7 @@ public class ExchangeController {
      */
     @GetMapping("/disconnect")
     public ResponseEntity<Map<String, Object>> disconnect(@RequestParam String exchange) {
-        var exchangeEnum = parseExchange(exchange);
+        var exchangeEnum = ExchangeEnum.fromString(exchange);
 
         log.info("REST request: disconnect {}", exchangeEnum);
 
@@ -75,15 +75,5 @@ public class ExchangeController {
         result.put("connected", false);
         result.put("message", "Disconnected from " + exchangeEnum.getDisplayName());
         return ResponseEntity.ok(result);
-    }
-
-    private ExchangeEnum parseExchange(String exchange) {
-        try {
-            return ExchangeEnum.valueOf(exchange.toUpperCase());
-        } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException(
-                    "Invalid exchange: " + exchange + ". Available: " + java.util.Arrays.toString(ExchangeEnum.values())
-            );
-        }
     }
 }

@@ -4,8 +4,8 @@ import { connectExchange, subscribeStream, getSymbols, disconnectExchanges, disc
 import { DealData, OrderBookLevel } from '../types'
 import { EXCHANGE_OPTIONS } from '../constants'
 
-const MAX_TRADES = 30
-const ORDER_BOOK_DEPTH = 100
+const MAX_TRADES = 100
+const ORDER_BOOK_DEPTH = 30
 
 interface TradeEntry {
   price: number
@@ -41,6 +41,15 @@ function formatPrice(value: number): string {
   return value?.toFixed(2).toString()
 }
 
+function getCurrentUtcTime(): string {
+  const now = new Date()
+  const hours = String(now.getUTCHours()).padStart(2, '0')
+  const minutes = String(now.getUTCMinutes()).padStart(2, '0')
+  const seconds = String(now.getUTCSeconds()).padStart(2, '0')
+  const ms = Math.floor(now.getUTCMilliseconds() / 100)
+  return `${hours}:${minutes}:${seconds}.${ms}`
+}
+
 const colors = {
   turquoise: "#578BC2",
   cyan: "#A1C4EB",
@@ -59,10 +68,12 @@ export const OrderBookPanel: React.FC = () => {
   const [bids, setBids] = useState<OrderBookLevel[]>([])
   const [asks, setAsks] = useState<OrderBookLevel[]>([])
   const [trades, setTrades] = useState<TradeEntry[]>([])
+  const [utcTime, setUtcTime] = useState<string>('')
 
   const eventSourceRef = useRef<EventSource | null>(null)
   const latestDealRef = useRef<DealData | null>(null)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const utcIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const getTableHeight = () => Math.max(200, window.innerHeight - 400)
   const [tableHeight, setTableHeight] = useState(getTableHeight)
@@ -94,6 +105,10 @@ export const OrderBookPanel: React.FC = () => {
     if (intervalRef.current) {
       clearInterval(intervalRef.current)
       intervalRef.current = null
+    }
+    if (utcIntervalRef.current) {
+      clearInterval(utcIntervalRef.current)
+      utcIntervalRef.current = null
     }
     latestDealRef.current = null
   }
@@ -154,6 +169,10 @@ export const OrderBookPanel: React.FC = () => {
           return next.slice(0, MAX_TRADES)
         })
       }, 200)
+
+      utcIntervalRef.current = setInterval(() => {
+        setUtcTime(getCurrentUtcTime())
+      }, 100)
     } catch (err) {
       setConnecting(false)
       message.error('Ошибка подключения: ' + (err instanceof Error ? err.message : String(err)))
@@ -161,11 +180,16 @@ export const OrderBookPanel: React.FC = () => {
   }
 
   const handleStop = async () => {
-    await disconnectExchange(exchange)
     disconnectStream()
     setConnected(false)
     setConnecting(false)
     setStoped(true)
+    setUtcTime('')
+    try {
+      await disconnectExchange(exchange)
+    } catch {
+      // отключение на клиенте уже выполнено
+    }
     message.info('Остановлено')
   }
 
@@ -173,7 +197,7 @@ export const OrderBookPanel: React.FC = () => {
   const statusColor = connecting ? 'orange' : connected ? 'green' : stoped ? 'blue' : 'default'
   const statusText = connecting ? 'Подключение...' : connected ? 'Подключено' : stoped ? 'Остановлено' : 'Не подключено'
 
-  const maxRows = Math.max(bids.length, asks.length, Math.min(trades.length, ORDER_BOOK_DEPTH), 5)
+  const maxRows = Math.max(bids.length, asks.length, Math.min(trades.length, ORDER_BOOK_DEPTH))
   const rows: TableRow[] = []
 
   for (let i = 0; i < maxRows; i++) {
@@ -339,12 +363,21 @@ export const OrderBookPanel: React.FC = () => {
   const orderBookColumns = columns.slice(0, 4)
   const tradeColumns = columns.slice(4)
 
+  const emptyText = connecting
+    ? 'Подключение...'
+    : connected
+      ? 'Ожидание данных...'
+      : stoped
+        ? 'Остановлено'
+        : 'Нажмите «Пуск» для загрузки данных'
+
   const sharedTableProps = {
     dataSource: rows,
     pagination: false as const,
     size: 'small' as const,
     bordered: true,
     scroll: { y: tableHeight } as const,
+    locale: { emptyText },
     components: {
       header: {
         cell: (props: React.HTMLAttributes<HTMLElement>) => (
@@ -386,6 +419,7 @@ export const OrderBookPanel: React.FC = () => {
                 setConnected(false)
                 setConnecting(false)
                 setStoped(false)
+                setUtcTime('')
               }}
               options={EXCHANGE_OPTIONS}
             />
@@ -403,6 +437,7 @@ export const OrderBookPanel: React.FC = () => {
                 setConnected(false)
                 setConnecting(false)
                 setStoped(false)
+                setUtcTime('')
               }}
               options={symbolOptions}
               showSearch
@@ -425,6 +460,23 @@ export const OrderBookPanel: React.FC = () => {
           <Tag color={statusColor} style={{ marginLeft: 4 }}>
             {statusText}
           </Tag>
+
+          {utcTime && (
+            <div
+              style={{
+                marginLeft: 'auto',
+                backgroundColor: '#738394',
+                color: '#fff',
+                padding: '6px 12px',
+                borderRadius: 4,
+                fontSize: '14px',
+                fontFamily: 'monospace',
+                fontWeight: 700,
+              }}
+            >
+              UTC {utcTime}
+            </div>
+          )}
         </div>
       </Card>
 

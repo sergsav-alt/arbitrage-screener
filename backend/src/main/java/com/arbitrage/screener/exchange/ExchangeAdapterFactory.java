@@ -39,4 +39,12 @@ public class ExchangeAdapterFactory {
     public void disconnectAll() {
         adapters.values().forEach(ExchangeAdapter::disconnect);
     }
+
+    /**
+     * Полностью завершает работу всех адаптеров (закрывает соединения
+     * и останавливает их планировщики). Используется при остановке приложения.
+     */
+    public void shutdownAll() {
+        adapters.values().forEach(ExchangeAdapter::shutdown);
+    }
 }

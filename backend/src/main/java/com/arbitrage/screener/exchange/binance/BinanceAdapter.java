@@ -16,7 +16,9 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
@@ -55,6 +57,14 @@ public class BinanceAdapter implements ExchangeAdapter {
     private final AtomicInteger dealReconnectAttempt;
     private final AtomicInteger bookTickerReconnectAttempt;
 
+    private final AtomicBoolean depthReconnectScheduled = new AtomicBoolean(false);
+    private final AtomicBoolean dealReconnectScheduled = new AtomicBoolean(false);
+    private final AtomicBoolean bookTickerReconnectScheduled = new AtomicBoolean(false);
+
+    private volatile ScheduledFuture<?> depthReconnectFuture;
+    private volatile ScheduledFuture<?> dealReconnectFuture;
+    private volatile ScheduledFuture<?> bookTickerReconnectFuture;
+
     private volatile ExchangeWebSocketClient depthWsClient;
     private volatile ExchangeWebSocketClient dealWsClient;
     private volatile ExchangeWebSocketClient bookTickerWsClient;
@@ -88,6 +98,7 @@ public class BinanceAdapter implements ExchangeAdapter {
     }
 
     private void doConnect() {
+        closing = false;
         connectDepth();
         connectDeal();
         connectBookTicker();
@@ -202,12 +213,22 @@ public class BinanceAdapter implements ExchangeAdapter {
     public void disconnect() {
         log.info("Binance: disconnecting from ws");
         closing = true;
+        cancelReconnect(depthReconnectFuture, depthReconnectScheduled);
+        cancelReconnect(dealReconnectFuture, dealReconnectScheduled);
+        cancelReconnect(bookTickerReconnectFuture, bookTickerReconnectScheduled);
         depthConnected = false;
         dealConnected = false;
         bookTickerConnected = false;
         disconnectDepth();
         disconnectDeal();
         disconnectBookTicker();
+    }
+
+    private void cancelReconnect(ScheduledFuture<?> future, AtomicBoolean scheduled) {
+        scheduled.set(false);
+        if (future != null) {
+            future.cancel(false);
+        }
     }
 
     private void disconnectDepth() {
@@ -226,6 +247,13 @@ public class BinanceAdapter implements ExchangeAdapter {
         if (bookTickerWsClient != null && bookTickerWsClient.isOpen()) {
             bookTickerWsClient.close();
         }
+    }
+
+    @Override
+    public void shutdown() {
+        log.info("Binance: shutting down adapter");
+        disconnect();
+        scheduler.shutdownNow();
     }
 
     @Override
@@ -276,36 +304,67 @@ public class BinanceAdapter implements ExchangeAdapter {
     // --- Reconnection ---
 
     private void scheduleDepthReconnect() {
+        if (closing || !depthReconnectScheduled.compareAndSet(false, true)) {
+            return;
+        }
+        depthConnected = false;
         disconnectDepth();
         var attempt = depthReconnectAttempt.incrementAndGet();
-        var delay = Math.min(
-                INITIAL_RECONNECT_DELAY_SECONDS * (long) Math.pow(2, attempt - 1),
-                MAX_RECONNECT_DELAY_SECONDS
-        );
+        var delay = reconnectDelay(attempt);
         log.info("Binance-Depth: reconnect attempt {} in {} seconds", attempt, delay);
-        scheduler.schedule(this::connectDepth, delay, TimeUnit.SECONDS);
+        depthReconnectFuture = scheduler.schedule(this::reconnectDepth, delay, TimeUnit.SECONDS);
+    }
+
+    private void reconnectDepth() {
+        depthReconnectScheduled.set(false);
+        if (!closing) {
+            connectDepth();
+        }
     }
 
     private void scheduleDealReconnect() {
+        if (closing || !dealReconnectScheduled.compareAndSet(false, true)) {
+            return;
+        }
+        dealConnected = false;
         disconnectDeal();
         var attempt = dealReconnectAttempt.incrementAndGet();
-        var delay = Math.min(
-                INITIAL_RECONNECT_DELAY_SECONDS * (long) Math.pow(2, attempt - 1),
-                MAX_RECONNECT_DELAY_SECONDS
-        );
+        var delay = reconnectDelay(attempt);
         log.info("Binance-Deal: reconnect attempt {} in {} seconds", attempt, delay);
-        scheduler.schedule(this::connectDeal, delay, TimeUnit.SECONDS);
+        dealReconnectFuture = scheduler.schedule(this::reconnectDeal, delay, TimeUnit.SECONDS);
+    }
+
+    private void reconnectDeal() {
+        dealReconnectScheduled.set(false);
+        if (!closing) {
+            connectDeal();
+        }
     }
 
     private void scheduleBookTickerReconnect() {
+        if (closing || !bookTickerReconnectScheduled.compareAndSet(false, true)) {
+            return;
+        }
+        bookTickerConnected = false;
         disconnectBookTicker();
         var attempt = bookTickerReconnectAttempt.incrementAndGet();
-        var delay = Math.min(
+        var delay = reconnectDelay(attempt);
+        log.info("Binance-BookTicker: reconnect attempt {} in {} seconds", attempt, delay);
+        bookTickerReconnectFuture = scheduler.schedule(this::reconnectBookTicker, delay, TimeUnit.SECONDS);
+    }
+
+    private void reconnectBookTicker() {
+        bookTickerReconnectScheduled.set(false);
+        if (!closing) {
+            connectBookTicker();
+        }
+    }
+
+    private long reconnectDelay(int attempt) {
+        return Math.min(
                 INITIAL_RECONNECT_DELAY_SECONDS * (long) Math.pow(2, attempt - 1),
                 MAX_RECONNECT_DELAY_SECONDS
         );
-        log.info("Binance-BookTicker: reconnect attempt {} in {} seconds", attempt, delay);
-        scheduler.schedule(this::connectBookTicker, delay, TimeUnit.SECONDS);
     }
 
     // --- Message Handling ---

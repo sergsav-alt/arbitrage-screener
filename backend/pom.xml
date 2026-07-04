@@ -79,12 +79,6 @@
 			<artifactId>Java-WebSocket</artifactId>
 			<version>1.6.0</version>
 		</dependency>
-
-		<!-- Testcontainers for PostgreSQL integration tests -->
-		<dependency>
-			<groupId>org.liquibase</groupId>
-			<artifactId>liquibase-core</artifactId>
-		</dependency>
 	</dependencies>
 
 	<build>

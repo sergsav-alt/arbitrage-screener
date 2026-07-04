@@ -15,6 +15,7 @@ import java.math.BigDecimal;
 import java.net.URI;
 import java.util.List;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
@@ -45,9 +46,12 @@ public class MexcAdapter implements ExchangeAdapter {
     private final List<Consumer<OrderBook>> orderBookHandlers;
     private final List<Consumer<BookTicker>> bookTickerHandlers;
     private final AtomicInteger reconnectAttempt;
+    private final AtomicBoolean reconnectScheduled = new AtomicBoolean(false);
 
     private volatile ExchangeWebSocketClient webSocketClient;
     private volatile boolean connected = false;
+    private volatile boolean closing = false;
+    private volatile ScheduledFuture<?> reconnectFuture;
     private volatile ScheduledFuture<?> pingTask;
     private volatile String subscribedSymbol;
 
@@ -72,6 +76,7 @@ public class MexcAdapter implements ExchangeAdapter {
     }
 
     private void doConnect() {
+        closing = false;
         var targetUri = URI.create(exchange.getWsUrl());
         this.webSocketClient = new ExchangeWebSocketClient(
                 targetUri,
@@ -79,11 +84,7 @@ public class MexcAdapter implements ExchangeAdapter {
                 this::onConnected,
                 this::handleMessage,
                 this::handleClose,
-                () -> {
-                    connected = false;
-                    stopPing();
-                    scheduleReconnect();
-                }
+                this::onError
         );
         try {
             this.webSocketClient.connect();
@@ -92,6 +93,12 @@ public class MexcAdapter implements ExchangeAdapter {
             log.error("MEXC: failed to connect: {}", e.getMessage());
             scheduleReconnect();
         }
+    }
+
+    private void onError() {
+        connected = false;
+        stopPing();
+        scheduleReconnect();
     }
 
     private void onConnected() {
@@ -105,12 +112,21 @@ public class MexcAdapter implements ExchangeAdapter {
     @Override
     public void disconnect() {
         log.info("MEXC: disconnecting from ws");
+        closing = true;
+        cancelReconnect();
         connected = false;
         stopPing();
         if (webSocketClient != null && webSocketClient.isOpen()) {
             unsubscribe();
             webSocketClient.close();
         }
+    }
+
+    @Override
+    public void shutdown() {
+        log.info("MEXC: shutting down adapter");
+        disconnect();
+        scheduler.shutdownNow();
     }
 
     @Override
@@ -248,14 +264,46 @@ public class MexcAdapter implements ExchangeAdapter {
     // --- Reconnection ---
 
     private void scheduleReconnect() {
-        disconnect();
+        if (closing) {
+            return;
+        }
+        if (!reconnectScheduled.compareAndSet(false, true)) {
+            return;
+        }
+        connected = false;
+        stopPing();
+        closeClient();
         var attempt = reconnectAttempt.incrementAndGet();
         var delay = Math.min(
                 INITIAL_RECONNECT_DELAY_SECONDS * (long) Math.pow(2, attempt - 1),
                 MAX_RECONNECT_DELAY_SECONDS
         );
         log.info("MEXC: reconnect attempt {} in {} seconds", attempt, delay);
-        scheduler.schedule(this::doConnect, delay, TimeUnit.SECONDS);
+        reconnectFuture = scheduler.schedule(this::reconnect, delay, TimeUnit.SECONDS);
+    }
+
+    private void reconnect() {
+        reconnectScheduled.set(false);
+        if (closing) {
+            return;
+        }
+        doConnect();
+    }
+
+    private void cancelReconnect() {
+        reconnectScheduled.set(false);
+        var future = reconnectFuture;
+        if (future != null) {
+            future.cancel(false);
+            reconnectFuture = null;
+        }
+    }
+
+    private void closeClient() {
+        var client = this.webSocketClient;
+        if (client != null && client.isOpen()) {
+            client.close();
+        }
     }
 
     // --- Message Handling ---
@@ -331,7 +379,7 @@ public class MexcAdapter implements ExchangeAdapter {
         log.warn("MEXC: ws closed: code={}, reason={}", statusCode, reason);
         connected = false;
         stopPing();
-        if (statusCode != org.java_websocket.framing.CloseFrame.NORMAL) {
+        if (!closing && statusCode != org.java_websocket.framing.CloseFrame.NORMAL) {
             scheduleReconnect();
         }
     }

@@ -4,6 +4,7 @@ import com.arbitrage.screener.cache.OrderBookCache;
 import com.arbitrage.screener.model.Deal;
 import com.arbitrage.screener.model.OrderBook;
 import com.arbitrage.screener.cache.DealCache;
+import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -83,7 +84,7 @@ public class ExchangeManager {
     }
 
     /**
-     * Отключает все активные соединения (используется при остановке приложения).
+     * Отключает все активные соединения.
      */
     public void disconnectAll() {
         log.info("Disconnecting all adapters");
@@ -91,6 +92,20 @@ public class ExchangeManager {
             disconnectExchange(exchange);
         }
         adapterFactory.disconnectAll();
+    }
+
+    /**
+     * Graceful shutdown при остановке приложения: закрывает все активные
+     * соединения и останавливает планировщики адаптеров, чтобы не оставлять
+     * висящие потоки и WebSocket-сессии.
+     */
+    @PreDestroy
+    public void shutdown() {
+        log.info("Shutting down ExchangeManager");
+        for (var exchange : activeConnections.keySet()) {
+            disconnectExchange(exchange);
+        }
+        adapterFactory.shutdownAll();
     }
 
     /**
