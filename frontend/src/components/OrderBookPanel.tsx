@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { Button, Card, Select, Table, Tag, message } from 'antd'
-import { connectExchange, subscribeStream, getSymbols, disconnectExchanges, disconnectExchange } from '../services/api'
+import { connectExchange, subscribeStream, disconnectExchanges, disconnectExchange } from '../services/api'
 import { DealData, OrderBookLevel } from '../types'
 import { EXCHANGE_OPTIONS } from '../constants'
+import { useSymbols } from '../hooks/useSymbols'
 
 const MAX_TRADES = 100
 const ORDER_BOOK_DEPTH = 30
@@ -59,8 +60,7 @@ const colors = {
 
 export const OrderBookPanel: React.FC = () => {
   const [exchange, setExchange] = useState<string>('BINANCE')
-  const [symbol, setSymbol] = useState<string | null>(null)
-  const [symbols, setSymbols] = useState<string[]>([])
+  const { symbol, setSymbol, symbolOptions } = useSymbols()
   const [connecting, setConnecting] = useState(false)
   const [connected, setConnected] = useState(false)
   const [stoped, setStoped] = useState(false)
@@ -80,13 +80,6 @@ export const OrderBookPanel: React.FC = () => {
 
   useEffect(() => {
     disconnectExchanges().catch(e => console.error(e))
-    getSymbols()
-      .then((list) => {
-        setSymbols(list)
-        const btc = list.find((s) => s.toUpperCase().includes('BTC'))
-        if (btc) setSymbol(btc)
-      })
-      .catch(console.error)
     const handleResize = () => setTableHeight(getTableHeight())
     window.addEventListener('resize', handleResize)
 
@@ -193,7 +186,6 @@ export const OrderBookPanel: React.FC = () => {
     message.info('Остановлено')
   }
 
-  const symbolOptions = symbols.map((s) => ({ value: s, label: s }))
   const statusColor = connecting ? 'orange' : connected ? 'green' : stoped ? 'blue' : 'default'
   const statusText = connecting ? 'Подключение...' : connected ? 'Подключено' : stoped ? 'Остановлено' : 'Не подключено'
 

@@ -1,6 +1,6 @@
 package com.arbitrage.screener.controller;
 
-import com.arbitrage.screener.exchange.depth.ExchangeApiException;
+import com.arbitrage.screener.exchange.ExchangeApiException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;

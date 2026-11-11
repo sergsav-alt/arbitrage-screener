@@ -2,16 +2,11 @@ import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Line } from 'react-chartjs-2'
 import '../chartSetup'
 import { Button, Card, Select, Tag, message } from 'antd'
-import {
-  connectExchange,
-  subscribeBookTickerStream,
-  getSymbols,
-  fetchOrderBook,
-  disconnectExchange,
-} from '../services/api'
+import { connectExchange, subscribeBookTickerStream, fetchOrderBook, disconnectExchange } from '../services/api'
 import { TickerData, OrderBookData } from '../types'
 import { EXCHANGE_OPTIONS } from '../constants'
 import { OrderBookTable } from './OrderBookTable'
+import { useSymbols } from '../hooks/useSymbols'
 
 const MAX_POINTS = 60
 const POLL_INTERVAL_MS = 1000
@@ -98,8 +93,7 @@ const RateLineChart: React.FC<RateLineChartProps> = ({ dataPoints }) => {
 
 export const RateChart: React.FC = () => {
   const [exchange, setExchange] = useState<string>('BINANCE')
-  const [symbol, setSymbol] = useState<string | null>(null)
-  const [symbols, setSymbols] = useState<string[]>([])
+  const { symbol, setSymbol, symbolOptions } = useSymbols()
 
   // connecting to exchange
   const [connecting, setConnecting] = useState(false)
@@ -119,16 +113,10 @@ export const RateChart: React.FC = () => {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
-    getSymbols()
-      .then((list) => {
-        setSymbols(list)
-        const btc = list.find((s) => s.toUpperCase().includes('BTC'))
-        if (btc) setSymbol(btc)
-      })
-      .catch(console.error)
     return () => {
       disconnectStream()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const disconnectStream = () => {
@@ -228,8 +216,6 @@ export const RateChart: React.FC = () => {
     },
     [exchange, symbol],
   )
-
-  const symbolOptions = symbols.map((s) => ({ value: s, label: s }))
 
   const statusColor = connecting ? 'orange' : connected ? 'green' : 'default'
 

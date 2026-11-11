@@ -2,9 +2,10 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Line } from 'react-chartjs-2'
 import '../chartSetup'
 import { Button, Card, Checkbox, Select, Tag, message } from 'antd'
-import { connectExchange, disconnectExchange, getSymbols, subscribeBookTickerStream } from '../services/api'
+import { connectExchange, disconnectExchange, subscribeBookTickerStream } from '../services/api'
 import { TickerData } from '../types'
 import { EXCHANGE_OPTIONS } from '../constants'
+import { useSymbols } from '../hooks/useSymbols'
 
 const MAX_POINTS = 60
 const POLL_INTERVAL_MS = 1000
@@ -167,8 +168,7 @@ const SpreadLineChart: React.FC<SpreadLineChartProps> = ({ dataPoints, visibleLi
 export const CrossRatesChart: React.FC = () => {
   const [exchangeA, setExchangeA] = useState<string>('BINANCE')
   const [exchangeB, setExchangeB] = useState<string>('BINGX')
-  const [symbol, setSymbol] = useState<string | null>(null)
-  const [symbols, setSymbols] = useState<string[]>([])
+  const { symbol, setSymbol, symbolOptions } = useSymbols()
   const [connecting, setConnecting] = useState(false)
   const [connectionEpoch, setConnectionEpoch] = useState(0)
   const [dataPoints, setDataPoints] = useState<SpreadPoint[]>([])
@@ -185,17 +185,11 @@ export const CrossRatesChart: React.FC = () => {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
-    getSymbols()
-      .then((list) => {
-        setSymbols(list)
-        const btc = list.find((s) => s.toUpperCase().includes('BTC'))
-        if (btc) setSymbol(btc)
-      })
-      .catch(console.error)
     return () => {
       disconnectStream(connARef)
       disconnectStream(connBRef)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const disconnectStream = (conn: React.MutableRefObject<ExchangeConnection>) => {
@@ -310,8 +304,6 @@ export const CrossRatesChart: React.FC = () => {
     notifyConnectionChange()
     message.info('Отключено')
   }
-
-  const symbolOptions = symbols.map((s) => ({ value: s, label: s }))
 
   const exchangeALabel = EXCHANGE_OPTIONS.find((e) => e.value === exchangeA)?.label || exchangeA
   const exchangeBLabel = EXCHANGE_OPTIONS.find((e) => e.value === exchangeB)?.label || exchangeB

@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { ExchangeStatus, TickerData, ConnectResult, OrderBookData, DealData } from '../types'
+import { ExchangeStatus, TickerData, ConnectResult, OrderBookData, DealData, CandleData } from '../types'
 
 const API_BASE = '/api'
 const API_SERVER = 'http://localhost:8080/api'
@@ -106,6 +106,43 @@ export function subscribeStream(
     })
   }
 
+  if (onError) {
+    eventSource.onerror = onError
+  }
+  return eventSource
+}
+
+export async function fetchCandles(
+  exchange: string,
+  symbol: string,
+  interval: string,
+  limit: number,
+): Promise<CandleData[]> {
+  const response = await axios.get<CandleData[]>(`${API_BASE}/candles/${exchange.toLowerCase()}/history`, {
+    params: { symbol, interval, limit },
+  })
+  return response.data
+}
+
+export function subscribeCandleStream(
+  exchange: string,
+  symbol: string,
+  interval: string,
+  onCandle: (candle: CandleData) => void,
+  onError?: (error: Event) => void,
+): EventSource {
+  const params = new URLSearchParams({ symbol, interval })
+  const url = `${API_SERVER}/candles/${exchange.toLowerCase()}/stream?${params.toString()}`
+  const eventSource = new EventSource(url)
+
+  eventSource.addEventListener('candle', (event) => {
+    try {
+      const data = JSON.parse(event.data) as CandleData
+      onCandle(data)
+    } catch (e) {
+      console.error('Failed to parse candle SSE data:', e)
+    }
+  })
   if (onError) {
     eventSource.onerror = onError
   }

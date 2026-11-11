@@ -4,6 +4,7 @@ import { AppLayout } from './components/AppLayout'
 import { OrderBookPanel } from './components/OrderBookPanel'
 import { RateChart } from './components/RateChart'
 import { CrossRatesChart } from './components/CrossRatesChart'
+import { CandleChart } from './components/CandleChart'
 
 const App: React.FC = () => {
   const tabs = [
@@ -21,6 +22,11 @@ const App: React.FC = () => {
       key: 'cross-rates',
       label: 'Cross-Rates',
       children: <CrossRatesChart />,
+    },
+    {
+      key: 'candles',
+      label: 'Candles',
+      children: <CandleChart />,
     },
   ]
 

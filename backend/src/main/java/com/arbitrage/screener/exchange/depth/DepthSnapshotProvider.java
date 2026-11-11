@@ -1,5 +1,6 @@
 package com.arbitrage.screener.exchange.depth;
 
+import com.arbitrage.screener.exchange.ExchangeApiException;
 import com.arbitrage.screener.exchange.ExchangeEnum;
 
 /**
